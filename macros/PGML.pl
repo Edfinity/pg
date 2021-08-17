@@ -1366,18 +1366,18 @@ sub Align {
   return "<!-- PTX:WARNING: PGML wanted to " . $item->{align} . " align here. -->\n" . $self->string($item);
 }
 
-my %bullet = (
-  bullet  => 'ul',
-  numeric => 'ol label="1."',
-  alpha   => 'ol label="a."',
-  Alpha   => 'ol label="A."',
-  roman   => 'ol label="i."',
-  Roman   => 'ol label="I."',
-  disc    => 'ul label="disc"',
-  circle  => 'ul label="circle"',
-  square  => 'ul label="square"',
-);
 sub List {
+  my %bullet = (
+    bullet  => 'ul',
+    numeric => 'ol label="1."',
+    alpha   => 'ol label="a."',
+    Alpha   => 'ol label="A."',
+    roman   => 'ol label="i."',
+    Roman   => 'ol label="I."',
+    disc    => 'ul label="disc"',
+    circle  => 'ul label="circle"',
+    square  => 'ul label="square"',
+  );
   my $self = shift; my $item = shift;
   my $list = $bullet{$item->{bullet}};
   return
