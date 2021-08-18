@@ -11,6 +11,7 @@ use JSON qw(decode_json);
 use PGUtil qw(not_null);
 use WeBWorK::Utils qw(path_is_subdir);
 use WeBWorK::CourseEnvironment;
+use File::Path qw(make_path);
 use utf8;
 #binmode(STDOUT,":encoding(UTF-8)");
 #binmode(STDIN,":encoding(UTF-8)");
@@ -245,14 +246,7 @@ sub createDirectory {
 	$permission = (defined($permission)) ? $permission : '0770';
 	# FIXME -- find out where the permission is supposed to be defined
 	my $errors = '';
-	mkdir($dirName, $permission)
-		or $errors .= "Can't do mkdir($dirName, $permission): $!\n".caller(3);
-	chmod($permission, $dirName)
-		or $errors .= "Can't do chmod($permission, $dirName): $!\n".caller(3);
-	unless ($numgid == -1) {
-		chown(-1,$numgid,$dirName)
-			or $errors .= "Can't do chown(-1,$numgid,$dirName): $!\n".caller(3);
-	}
+	make_path($dirName, { verbose => 1, chmod => $permission, error => \$errors, group => $numgid })
 	if ($errors) {
 		warn $errors;
 		return 0;
