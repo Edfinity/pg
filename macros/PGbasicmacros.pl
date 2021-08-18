@@ -1508,12 +1508,9 @@ a hard copy output.
 =cut
 
 
-{
-  no warnings 'redefine';
-  sub TEX {
-    my ($tex, $html ) = @_;
-    MODES(TeX => $tex, HTML => $html, HTML_tth => $html, HTML_dpng => $html);
-  }
+sub TEX {
+	my ($tex, $html ) = @_;
+	MODES(TeX => $tex, HTML => $html, HTML_tth => $html, HTML_dpng => $html);
 }
 
 
