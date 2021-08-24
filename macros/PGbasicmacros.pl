@@ -1385,7 +1385,7 @@ sub HINT {
 		} elsif ($displayMode=~/PTX/) {
         TEXT( '<hint>',"\n",hint(@_),"\n",'</hint>',"\n\n") if hint(@_);
     } else {
-	TEXT($PAR, HINT_HEADING(), $BR. hint(@_) . $PAR) if hint(@_);
+        TEXT(apply_text_filter('hint', $PAR . HINT_HEADING() . $BR . hint(@_) . $PAR)) if hint(@_);
     }
 }
 
