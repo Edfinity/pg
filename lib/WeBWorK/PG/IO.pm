@@ -246,9 +246,9 @@ sub createDirectory {
 	$permission = (defined($permission)) ? $permission : '0770';
 	# FIXME -- find out where the permission is supposed to be defined
 	my $errors = '';
-	make_path($dirName, { verbose => 1, chmod => $permission, error => \$errors, group => $numgid })
+	make_path($dirName, { verbose => 1, error => \$errors, chmod => 0775 });
 	if ($errors) {
-		warn $errors;
+		warn join(", ", $errors);
 		return 0;
 	} else {
 		return 1;
