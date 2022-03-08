@@ -248,7 +248,6 @@ sub createDirectory {
 	my $errors = '';
 	make_path($dirName, { verbose => 1, error => \$errors, chmod => 0775 });
 	if ($errors) {
-		warn join(", ", $errors);
 		return 0;
 	} else {
 		return 1;
