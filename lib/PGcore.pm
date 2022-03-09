@@ -830,7 +830,9 @@ sub surePathToTmpFile {
 
 		unless (-e $path) {
 			$self->createDirectory($path, $perms, $groupID)
-				or $self->warning_message( "Failed to create directory at $path with permissions $perms and groupID $groupID");
+      # This line somehow ends up in the PG code stream and causes a parsing error
+      # Nonetheless, the directory is created, so not needed to alert the user here
+      # or $self->warning_message( "zoinks! Failed to create directory at $path with permissions $perms and groupID $groupID");
 		}
 
 	}
