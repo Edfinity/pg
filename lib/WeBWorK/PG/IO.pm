@@ -246,12 +246,12 @@ sub createDirectory {
 	$permission = (defined($permission)) ? $permission : '0770';
 	# FIXME -- find out where the permission is supposed to be defined
 	my $errors = '';
-	make_path($dirName, { verbose => 1, error => \$errors, chmod => 0775 });
-	if ($errors) {
+	make_path($dirName, { error => \$errors, chmod => 0775 });
+	if ($errors && (! -e $dirName)) {
+		warn join(", ", $errors);
 		return 0;
-	} else {
-		return 1;
 	}
+	return 1;
 }
 
 =item path_is_course_subdir($path)
