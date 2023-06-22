@@ -491,7 +491,7 @@ END_TIKZ
 		$self->constructJSXGraphOptions;
 		my $ans_name = $self->ANS_NAME;
 		$out .= "<div id='${ans_name}_graphbox' class='graphtool-container'></div>" .
-			"<script>window.addEventListener('DOMContentLoaded', function() {
+			"<script>_.defer(function() {
 			graphTool('${ans_name}_graphbox', { " .
 			"htmlInputId: '${ans_name}', " .
 			"staticObjects: '" . join(',', @{$self->{staticObjects}}) . "'," .
