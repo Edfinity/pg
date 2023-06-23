@@ -542,7 +542,10 @@ use constant GEOGEBRAWEB_OBJECT_TEXT => <<'END_OBJECT_TEXT';
 	data-id="$appletName"
 	data-width="$width"
 	data-height="$height"
-	$webgeogebraParameters></div>
+	$webgeogebraParameters>
+  <script language="javascript">ww_applet_list["$appletName"].visible = 1; // don't submit things if not visible
+  </script>
+	</div>
 END_OBJECT_TEXT
 
 sub new {
