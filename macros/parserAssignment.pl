@@ -1,13 +1,12 @@
 ################################################################################
 # WeBWorK Online Homework Delivery System
-# Copyright &copy; 2000-2018 The WeBWorK Project, http://openwebwork.sf.net/
-# $CVSHeader$
-# 
+# Copyright &copy; 2000-2022 The WeBWorK Project, https://github.com/openwebwork
+#
 # This program is free software; you can redistribute it and/or modify it under
 # the terms of either: (a) the GNU General Public License as published by the
 # Free Software Foundation; either version 2, or (at your option) any later
 # version, or (b) the "Artistic License" which comes with this package.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 # FOR A PARTICULAR PURPOSE.  See either the GNU General Public License or the
@@ -347,7 +346,10 @@ our @ISA = ("Value::Formula");
 sub new {
   my $self = shift; $class = ref($self) || $self;
   my $f = $self->SUPER::new(@_);
-  bless $f, $class if $f->type eq 'Assignment';
+  return $f unless $f->type eq 'Assignment';
+  bless $f, $class;
+  my $rhs = $f->getTypicalValue($f)->{data}[1];
+  Value->Error('Assignment of strings is not allowed.') if $rhs && $rhs->type eq 'String';
   return $f;
 }
 
@@ -355,10 +357,8 @@ sub typeMatch {
   my $self = shift; my $other = shift; my $ans = shift;
   return 0 unless $self->type eq $other->type;
   $other = $other->Package("Formula")->new($self->context,$other) unless $other->isFormula;
-  my $typeMatch = ($self->createRandomPoints(1))[1]->[0]{data}[1];
-  $main::__other__ = sub {($other->createRandomPoints(1))[1]->[0]{data}[1]};
-  $other = main::PG_restricted_eval('&$__other__()');
-  delete $main::{__other__};
+  my $typeMatch = $self->getTypicalValue($self)->{data}[1];
+  $other = $self->getTypicalValue($other,1)->{data}[1];
   return 1 unless defined($other); # can't really tell, so don't report type mismatch
   $typeMatch->typeMatch($other,$ans);
 }

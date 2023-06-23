@@ -237,7 +237,7 @@ sub Init {
      "/ " => {class => "context::Fraction::BOP::divide"},
      " /" => {class => "context::Fraction::BOP::divide"},
      "u-" => {class => "context::Fraction::UOP::minus"},
-     " "  => {precedence => 2.8, string => ' *'},
+     " "  => {precedence => 2.8, mq_precedence => 3, string => ' *'},
      " *" => {class => "context::Fraction::BOP::multiply", precedence => 2.8},
      #  precedence is lower to get proper parens in string() and TeX() calls
      "  " => {precedence => 2.7, associativity => 'left', type => 'bin', string => ' ',
@@ -618,7 +618,7 @@ sub reduce {
 #
 sub string {
   my $self = shift;
-  my $string = $self->SUPER::string($self, @_);
+  my $string = $self->SUPER::string(@_);
   return $string unless $self->{value}->classMatch('Fraction');
   my $precedence = shift;
   my $frac = $self->context->operators->get('/')->{precedence};
@@ -627,15 +627,18 @@ sub string {
 }
 
 #
-#  Add parentheses if they are needed by precedence
+#  Add parentheses if they were there originally, or
+#  are needed by precedence and we asked for exxxtra parens
 #
 sub TeX {
   my $self = shift;
-  my $string = $self->SUPER::TeX($self, @_);
+  my $string = $self->SUPER::TeX(@_);
   return $string unless $self->{value}->classMatch('Fraction');
   my $precedence = shift;
   my $frac = $self->context->operators->get('/')->{precedence};
-  $string = '\left(' . $string . '\right)' if defined $precedence && $precedence > $frac;
+  my $noparens = shift;
+  $string = '\left(' . $string . '\right)' if $self->{hadParens} ||
+    (defined $precedence && $precedence > $frac && !$noparens);
   return $string;
 }
 
@@ -898,20 +901,23 @@ sub string {
   if ($self->getFlagWithAlias("showMixedNumbers","showProperFractions") && CORE::abs($a) > $b)
     {$n = int($a/$b); $a = CORE::abs($a) % $b; $n .= " " unless $a == 0}
   $n .= "$a/$b" unless $a == 0 && $n ne '';
-  $n = "($n)" if defined $prec && $prec >= 1;
   return "$n";
 }
 
 sub TeX {
   my $self = shift; my $equation = shift; shift; shift; my $prec = shift;
   my ($a,$b) = @{$self->{data}}; my $n = "";
+  my $textstyle = '';
   return "$a" if $b == 1;
-  if ($self->getFlagWithAlias("showMixedNumbers","showProperFractions") && CORE::abs($a) > $b)
-    {$n = int($a/$b); $a = CORE::abs($a) % $b; $n .= " " unless $a == 0}
+  if ($self->getFlagWithAlias("showMixedNumbers","showProperFractions") && CORE::abs($a) > $b) {
+    $n = int($a/$b);
+    $a = CORE::abs($a) % $b;
+    $n .= ' ' unless $a == 0;
+    $textstyle = '\\textstyle';
+  }
   my $s = ""; ($a,$s) = (-$a,"-") if $a < 0;
-  $n .= ($self->{isHorizontal} ? "$s$a/$b" : "${s}{\\textstyle\\frac{$a}{$b}}")
+  $n .= ($self->{isHorizontal} ? "$s$a/$b" : "${s}{$textstyle\\frac{$a}{$b}}")
     unless $a == 0 && $n ne '';
-  $n = "\\left($n\\right)" if defined $prec && $prec >= 1;
   return "$n";
 }
 

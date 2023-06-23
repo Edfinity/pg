@@ -487,9 +487,12 @@ our %known_units = ('m'  => {
 # cal    -- calorie
 # kcal   -- kilocalorie
 # eV     -- electron volt
+# keV    -- kilo electron volt
+# MeV    -- mega electron volt
+# GeV    -- giga electron volt
 # kWh    -- kilo Watt hour
 #
-                    'J'  => {
+                  'J'  => {
                            'factor'    => 1,
                            'm'         => 2,
                            'kg'        => 1,
@@ -513,13 +516,13 @@ our %known_units = ('m'  => {
                            'kg'        => 1,
                            's'         => -2
                           },
-                'kt'  => {
+                 'kt'  => {
                            'factor'    => 4.184E12,
                            'm'         => 2,
                            'kg'        => 1,
                            's'         => -2
                           },
-                'Mt'  => {
+                 'Mt'  => {
                            'factor'    => 4.184E15,
                            'm'         => 2,
                            'kg'        => 1,
@@ -537,8 +540,26 @@ our %known_units = ('m'  => {
                            'kg'        => 1,
                            's'         => -2
                           },
-                'eV'  => {
-                           'factor'    => 1.60E-9,
+                 'eV'  => {
+                           'factor'    => 1.6022E-19,
+                           'm'         => 2,
+                           'kg'        => 1,
+                           's'         => -2
+                          },
+                'keV'  => {
+                           'factor'    => 1.6022E-16,
+                           'm'         => 2,
+                           'kg'        => 1,
+                           's'         => -2
+                          },
+                'MeV'  => {
+                           'factor'    => 1.6022E-13,
+                           'm'         => 2,
+                           'kg'        => 1,
+                           's'         => -2
+                          },
+                'GeV'  => {
+                           'factor'    => 1.6022E-10,
                            'm'         => 2,
                            'kg'        => 1,
                            's'         => -2
@@ -762,7 +783,7 @@ our %known_units = ('m'  => {
                            's'         => -2,
                          },
                 'G' => {
-                           'factor'    => 1E-5,
+                           'factor'    => 1E-4,
                            'kg'        => 1,
                            'amp'       => -1,
                            's'         => -2,
