@@ -331,8 +331,6 @@ window.graphTool = (containerId, options) => {
 					gt.objectFocusSet = false;
 					gt.activeTool?.deactivate();
 					delete gt.activeTool;
-					// Hide tooltips that have been shown.  This seems to only be needed for touch screen devices.
-					gt.tooltips.forEach((tooltip) => tooltip.hide());
 				}
 			});
 
@@ -1869,7 +1867,7 @@ window.graphTool = (containerId, options) => {
 			const closeButton = document.createElement('button');
 			closeButton.type = 'button';
 			closeButton.classList.add('btn-close');
-			closeButton.dataset.bsDismiss = 'modal';
+			closeButton.dataset.dismiss = 'modal';
 			closeButton.setAttribute('aria-label', 'close');
 
 			modalHeader.append(titleH3, closeButton);
@@ -1886,11 +1884,12 @@ window.graphTool = (containerId, options) => {
 			const yesButton = document.createElement('button');
 			yesButton.classList.add('btn', 'btn-primary');
 			yesButton.textContent = 'Yes';
-			yesButton.addEventListener('click', () => { yesAction(); bsModal.hide(); });
+			yesButton.dataset.dismiss = 'modal';
+			yesButton.addEventListener('click', () => { yesAction(); });
 
 			const noButton = document.createElement('button');
 			noButton.classList.add('btn', 'btn-primary');
-			noButton.dataset.bsDismiss = 'modal';
+			noButton.dataset.dismiss = 'modal';
 			noButton.textContent = 'No';
 
 			modalFooter.append(yesButton, noButton);
@@ -1898,9 +1897,8 @@ window.graphTool = (containerId, options) => {
 			modalDialog.append(modalContent);
 			modal.append(modalDialog);
 
-			const bsModal = new bootstrap.Modal(modal);
+			const bsModal = $(modal).modal();
 			bsModal.show();
-			document.querySelector('.modal-backdrop').style.opacity = '0.2';
 
 			modal.addEventListener('hidden.bs.modal', () => {
 				bsModal.dispose();
@@ -1974,11 +1972,6 @@ window.graphTool = (containerId, options) => {
 		gt.buttonBox.append(gt.clearButton);
 
 		gt.graphContainer.append(gt.buttonBox);
-
-		gt.tooltips = Array.from(
-			document.querySelectorAll('.gt-button-div[data-bs-toggle="tooltip"],.gt-button[data-bs-toggle="tooltip"]'))
-			.map((tooltip) => new bootstrap.Tooltip(tooltip,
-				{ placement: 'bottom', trigger: 'hover', delay: { show: 500, hide: 0 } }));
 	}
 
 	setupBoard();

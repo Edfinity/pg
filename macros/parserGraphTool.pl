@@ -208,10 +208,10 @@ This is the size of the graph that will be output when a hard copy of the proble
 =cut
 
 sub _parserGraphTool_init {
-	ADD_CSS_FILE('node_modules/jsxgraph/distrib/jsxgraph.css');
+	ADD_CSS_FILE('https://cdn.jsdelivr.net/npm/jsxgraph@1.4.6/distrib/jsxgraph.min.css');
 	ADD_CSS_FILE('js/apps/GraphTool/graphtool.css');
-	ADD_JS_FILE('node_modules/jsxgraph/distrib/jsxgraphcore.js', 0, { defer => undef });
-	ADD_JS_FILE('js/apps/GraphTool/graphtool.js',                0, { defer => undef });
+	ADD_JS_FILE('https://cdn.jsdelivr.net/npm/jsxgraph@1.4.6/distrib/jsxgraphcore.js', 0, { preload => 1 });
+	ADD_JS_FILE('js/apps/GraphTool/graphtool.js',                0, { preload => 1 });
 	ADD_JS_FILE('js/apps/GraphTool/pointtool.js',                0, { defer => undef });
 	ADD_JS_FILE('js/apps/GraphTool/quadratictool.js',            0, { defer => undef });
 	ADD_JS_FILE('js/apps/GraphTool/cubictool.js',                0, { defer => undef });
@@ -758,26 +758,20 @@ END_TIKZ
 		$out .= <<END_SCRIPT;
 <div id='${ans_name}_graphbox' class='graphtool-container'></div>
 <script>
-(() => {
-	const initialize = () => {
-		graphTool('${ans_name}_graphbox', {
-			htmlInputId: '${ans_name}',
-			staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
-			snapSizeX: $self->{snapSizeX},
-			snapSizeY: $self->{snapSizeY},
-			xAxisLabel: '$self->{xAxisLabel}',
-			yAxisLabel: '$self->{yAxisLabel}',
-			ariaDescription: '${\(main::encode_pg_and_html($self->{ariaDescription}))}',
-			showCoordinateHints: $self->{showCoordinateHints},
-			customGraphObjects: {$customGraphObjects},
-			customTools: {$customTools},
-			availableTools: ['${\(join("','", @{$self->{availableTools}}))}'],
-			JSXGraphOptions: $self->{JSXGraphOptions}
-		});
-	};
-	if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initialize);
-	else initialize();
-})();
+  graphTool('${ans_name}_graphbox', {
+    htmlInputId: '${ans_name}',
+    staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
+    snapSizeX: $self->{snapSizeX},
+    snapSizeY: $self->{snapSizeY},
+    xAxisLabel: '$self->{xAxisLabel}',
+    yAxisLabel: '$self->{yAxisLabel}',
+    ariaDescription: '${\(main::encode_pg_and_html($self->{ariaDescription}))}',
+    showCoordinateHints: $self->{showCoordinateHints},
+    customGraphObjects: {$customGraphObjects},
+    customTools: {$customTools},
+    availableTools: ['${\(join("','", @{$self->{availableTools}}))}'],
+    JSXGraphOptions: $self->{JSXGraphOptions}
+  })
 </script>
 END_SCRIPT
 	}
@@ -798,24 +792,18 @@ sub cmp_preprocess {
 		$ans->{preview_latex_string} = <<END_ANS;
 <div id='${ans_name}_student_ans_graphbox' class='graphtool-answer-container'></div>
 <script>
-(() => {
-	const initialize = () => {
-		graphTool("${ans_name}_student_ans_graphbox", {
-			staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
-			answerObjects: '${\(join(',', $ans->{student_ans}))}',
-			isStatic: true,
-			snapSizeX: $self->{snapSizeX},
-			snapSizeY: $self->{snapSizeY},
-			xAxisLabel: '$self->{xAxisLabel}',
-			yAxisLabel: '$self->{yAxisLabel}',
-			customGraphObjects: {$customGraphObjects},
-			JSXGraphOptions: $self->{JSXGraphOptions},
-			ariaDescription: "answer preview graph"
-		});
-	};
-	if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initialize);
-	else initialize();
-})();
+  graphTool("${ans_name}_student_ans_graphbox", {
+    staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
+    answerObjects: '${\(join(',', $ans->{student_ans}))}',
+    isStatic: true,
+    snapSizeX: $self->{snapSizeX},
+    snapSizeY: $self->{snapSizeY},
+    xAxisLabel: '$self->{xAxisLabel}',
+    yAxisLabel: '$self->{yAxisLabel}',
+    customGraphObjects: {$customGraphObjects},
+    JSXGraphOptions: $self->{JSXGraphOptions},
+    ariaDescription: "answer preview graph"
+  })
 </script>
 END_ANS
 	}
@@ -836,24 +824,18 @@ sub cmp {
 		$cmp->{rh_ans}{correct_ans_latex_string} = <<END_ANS;
 <div id='${ans_name}_correct_ans_graphbox' class='graphtool-answer-container'></div>
 <script>
-(() => {
-	const initialize = () => {
-		graphTool("${ans_name}_correct_ans_graphbox", {
-			staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
-			answerObjects: '${\(join(',', $cmp->{rh_ans}{correct_ans}))}',
-			isStatic: true,
-			snapSizeX: $self->{snapSizeX},
-			snapSizeY: $self->{snapSizeY},
-			xAxisLabel: '$self->{xAxisLabel}',
-			yAxisLabel: '$self->{yAxisLabel}',
-			customGraphObjects: {$customGraphObjects},
-			JSXGraphOptions: $self->{JSXGraphOptions},
-			ariaDescription: "correct answer graph"
-		});
-	};
-	if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', initialize);
-	else initialize();
-})();
+  graphTool("${ans_name}_correct_ans_graphbox", {
+    staticObjects: '${\(join(',', @{$self->{staticObjects}}))}',
+    answerObjects: '${\(join(',', $cmp->{rh_ans}{correct_ans}))}',
+    isStatic: true,
+    snapSizeX: $self->{snapSizeX},
+    snapSizeY: $self->{snapSizeY},
+    xAxisLabel: '$self->{xAxisLabel}',
+    yAxisLabel: '$self->{yAxisLabel}',
+    customGraphObjects: {$customGraphObjects},
+    JSXGraphOptions: $self->{JSXGraphOptions},
+    ariaDescription: "correct answer graph"
+  })
 </script>
 END_ANS
 	}
