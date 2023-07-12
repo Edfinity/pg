@@ -1,9 +1,10 @@
 sub _LiveGraphics3D_init {
-	ADD_JS_FILE('node_modules/x3dom/x3dom.js');
-	ADD_JS_FILE('node_modules/jszip/dist/jszip.min.js');
-	ADD_JS_FILE('node_modules/jszip-utils/dist/jszip-utils.min.js');
+	ADD_JS_FILE('js/apps/misc/x3dom.js');
+	ADD_JS_FILE('js/apps/misc/jszip.min.js');
+	ADD_JS_FILE('js/apps/misc/jszip-utils.min.js');
 	ADD_JS_FILE('js/apps/LiveGraphics/liveGraphics.js');
-	ADD_CSS_FILE('node_modules/x3dom/x3dom.css');
+
+	ADD_CSS_FILE('js/apps/misc/x3dom.css');
 }
 
 =head2 LiveGraphics3D.pl
@@ -132,20 +133,22 @@ sub LiveGraphics3D {
     }
     
     $out .= <<EOS;
+    <div id="3dwidget"></div>
+
     <script>
-    var thisTD = jQuery('script:last').parent();
-    var options = { width : $w,
-		    height : $h,
-		    file : '$file_input',
-		    input : '$direct_input',
-		    archive : '$archive_input',
-		    vars : $ind_vars,
-    };
+    window.runLiveGraphics3D = function(thisTD) {
+      var options = { width : $w,
+	  	    height : $h,
+	  	    file : '$file_input',
+	  	    input : '$direct_input',
+	  	    archive : '$archive_input',
+	  	    vars : $ind_vars,
+      };
 
-    if (typeof LiveGraphics3D !== 'undefined') {
-        var graph = new LiveGraphics3D(thisTD[0],options);
+      if (typeof LiveGraphics3D !== 'undefined') {
+          var graph = new LiveGraphics3D(thisTD[0],options);
+      }
     }
-
     </script>
 EOS
 
