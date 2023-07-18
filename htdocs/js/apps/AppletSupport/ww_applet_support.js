@@ -351,6 +351,7 @@ class ww_applet {
 			}
 		}
 	}
+	window.initializeAppletSupport = initializeAppletSupport;
 
 	window.addEventListener('PGContentLoaded', initializeAppletSupport);
 	window.addEventListener('DOMContentLoaded', initializeAppletSupport);
