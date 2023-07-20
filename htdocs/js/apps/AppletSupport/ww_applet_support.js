@@ -21,7 +21,7 @@ const ww_applet_list = {};
 // Dummy function provided to prevent console errors for problems written for lecacy code.
 const applet_loaded = () => {};
 
-const getApplet = (appletName) => window[appletName];
+getApplet = (appletName) => window[appletName];
 
 // Get Question Element in problemMainForm by name
 const getQE = (name1) => {
