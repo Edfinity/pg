@@ -37,7 +37,6 @@ extending to the end of the line is also ignored.
 use strict;
 use warnings;
 use Digest::MD5 qw(md5_hex);
-use Encode qw(encode_utf8 );
 use Fcntl qw(:DEFAULT :flock);
 BEGIN { my @_junk = (O_RDWR,O_CREAT,LOCK_EX) } # get rid of "subroutine redefined" warnings
 
@@ -72,8 +71,6 @@ sub new {
 Looks up a TeX string in the database. A unique identifier for the cached image
 is returned. If necessary, the string is added to the database.
 
-=back
-
 =cut
 
 sub lookup {
@@ -89,7 +86,7 @@ sub lookup {
 	# Option 2 (the old default): remove all whitespace
 	# $tex =~ s/\s+//g;
 
-	my $md5 = md5_hex(encode_utf8($tex));
+	my $md5 = md5_hex($tex);
 	
 	my $db = $self->{cacheDB};
 	unless($db) { return($md5 ."1"); }

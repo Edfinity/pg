@@ -26,6 +26,8 @@
 	row. 
 	(do we need a second objective function row? -- think we can skip this for now.)
 	
+=cut	
+
 =head2 DESCRIPTION
 
  # We're going to have several types
@@ -73,9 +75,11 @@ The structure of the tableau is:
 	FIXME: ?? allow c to be a 2 by n matrix so that you can do phase1 calculations easily 
 
 
+=cut
+
+
 =head2 Package main
 
-=over
 
 =item tableauEquivalence 
 
@@ -91,6 +95,9 @@ The structure of the tableau is:
  # since the order of the equations is unimportant.  This applies to tableaus for 
  # Linear Optimization Problems being solved using the simplex method.
  
+=cut
+
+
 =item  get_tableau_variable_values
  	(DEPRECATED -- use Tableau->statevars method )
 	Parameters: ($MathObjectMatrix_tableau, $MathObjectSet_basis)
@@ -121,7 +128,9 @@ an array in scalar context.
 Replaces commas with line breaks in the latex presentations of the answer checker.
 Used most often when $constraints is a LinearInequality math object.
 
-=back
+
+=cut 
+
 
 =head3 References:
 
@@ -131,9 +140,11 @@ CPAN RealMatrix docs: L<http://search.cpan.org/~leto/Math-MatrixReal-2.09/lib/Ma
 
 More references: L<lib/Matrix.pm>
 
+=cut
+
 =head2 Package tableau
 
-=over
+=cut
 
 =item new
 
@@ -567,11 +578,7 @@ sub assemble_tableau {
 	                # is not in this part of the matrix
 }
 
-=back
-
 =head2 Accessors and mutators
-
-=over
 
 =item  basis_columns
 
@@ -580,6 +587,9 @@ sub assemble_tableau {
 	
 	Sets or returns the basis_columns as an ARRAY reference
 	
+=cut 
+
+
 =item  objective_row
 
 		$self->objective_row
@@ -1507,8 +1517,6 @@ sub submatrix {
 	
 	perhaps "assign" would be a better name for this?
 	
-=back
-
 =cut
 
 #  This was written by Davide Cervone.

@@ -26,11 +26,14 @@ sub init {
   $self->{dataName} = 'variables';
   $self->{name} = 'variable';
   $self->{Name} = 'Variable';
-  $self->{namePattern} = qr/\w+/;
+  $self->{namePattern} = qr/[a-zA-Z][a-zA-Z0-9]*/;
   $self->{tokenType} = 'var';
-  $self->{precedence} = 10;   # generic variable name pattern comes last (after specific names and after numbers)
+  $self->{precedence} = 5;
   $self->{patterns}{$self->{namePattern}} = [$self->{precedence},$self->{tokenType}];
 }
+
+#sub addToken {}    # no tokens needed
+#sub removeToken {}
 
 #
 #  If the type is one of the named ones, use it's known type
@@ -61,7 +64,7 @@ sub uncreate {shift; (shift)->{type}};
 #
 sub type {
   my $self = shift; my $x = shift;
-  return $self->{context}->variables->resolveDef($x)->{type};
+  return $self->{context}{variables}{$x}{type};
 }
 
 #
@@ -69,7 +72,7 @@ sub type {
 #
 sub value {
   my $self = shift; my $x = shift;
-  return $self->{context}->variables->resolveDef($x)->{value};
+  return $self->{context}{variables}{$x}{value};
 }
 
 #
@@ -77,10 +80,8 @@ sub value {
 #
 sub variables {
   my $self = shift; my @names;
-  my $vars = $self->{context}{variables};
-  foreach my $x ($self->SUPER::names) {
-    push(@names,$x) unless $vars->{$x}{parameter} || $vars->{$x}{alias};
-  }
+  foreach my $x ($self->SUPER::names)
+    {push(@names,$x) unless $self->{context}{variables}{$x}{parameter}}
   return @names;
 }
 
@@ -89,10 +90,8 @@ sub variables {
 #
 sub parameters {
   my $self = shift; my @names;
-  my $vars = $self->{context}{variables};
-  foreach my $x ($self->SUPER::names) {
-    push(@names,$x) if $vars->{$x}{parameter} && !$vars->{$x}{alias};
-  }
+  foreach my $x ($self->SUPER::names)
+    {push(@names,$x) if $self->{context}{variables}{$x}{parameter}}
   return @names;
 }
 

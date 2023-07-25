@@ -14,17 +14,8 @@
 # Artistic License for more details.
 ################################################################################
 package PGcore;
+
 use strict;
-
-BEGIN {
-    use File::Basename qw(dirname);
-    my $dir = dirname(__FILE__);
-    do "${dir}/../VERSION";
-    warn "Error loading PG VERSION file: $!"    if $!;
-    warn "Error processing PG VERSION file: $@" if $@;
-    $ENV{PG_VERSION} = $PGcore::PG_VERSION || 'unknown';
-}
-
 our $internal_debug_messages = [];
 
 use PGanswergroup;
@@ -86,7 +77,8 @@ sub new {
 		ARRAY_PREFIX              => 'ArRaY',
 		vec_num                   => 0,     # for distinguishing matrices
 		QUIZ_PREFIX               => $envir->{QUIZ_PREFIX},
-		PG_VERSION                => $ENV{PG_VERSION},
+		SECTION_PREFIX            => '',  # might be used for sequential (compound) questions?
+		
 		PG_ACTIVE                 => 1,   # toggle to zero to stop processing
 		submittedAnswers          => 0,   # have any answers been submitted? is this the first time this session?
 		PG_session_persistence_hash =>{}, # stores data from one invoction of the session to the next.
@@ -98,7 +90,7 @@ sub new {
 		envir                     => $envir,
 		WARNING_messages		  => [],
 		DEBUG_messages            => [],
-		names_created              => 0,
+		gifs_created              => {},
 		external_refs             => {},      # record of external references 
 		%options,                                   # allows overrides and initialization	
 	};
@@ -199,7 +191,8 @@ up the results of problem processing for delivery back to WeBWorK.
 The HEADER_TEXT(), TEXT(), and ANS() macros add to the header text string,
 body text string, and answer evaluator queue, respectively.
 
-=over
+=cut
+
 
 =item HEADER_TEXT()
 
@@ -333,6 +326,7 @@ sub LABELED_ANS{
   my @in = @_;
   while (@in ) {
   	my $label    = shift @in;
+  	#$label       = join("", $self->{QUIZ_PREFIX}, $self->{SECTION_PREFIX}, $label);
   	my $ans_eval = shift @in;
   	$self->warning_message("<BR><B>Error in LABELED_ANS:|$label|</B>
   	      -- inputs must be references to AnswerEvaluator objects or subroutines<BR>")
@@ -597,8 +591,6 @@ sub encode_pg_and_html {
     return $input;
 }
 
-=back
-
 =head2   Message channels
 
 There are three message channels
@@ -676,7 +668,7 @@ sub DESTROY {
 	# returns a path to the file containing the graph image.
 	$filePath = insertGraph($graphObject);
 
-insertGraph writes a GIF or PNG image file to the images subdirectory of the
+insertGraph writes a GIF or PNG image file to the gif subdirectory of the
 current course's HTML temp directory. The file name is obtained from the graph
 object. Warnings are issued if errors occur while writing to the file.
 
@@ -702,45 +694,25 @@ sub insertGraph {
 	# Convert the image to GIF and print it on standard output
 	my $self     = shift;
 	my $graph    = shift;
-	my $fileName = $graph->imageName . "." . $graph->ext;
-	my $filePath = $self->convertPath("images/$fileName");
+	my $extension = ($WWPlot::use_png) ? '.png' : '.gif';
+	my $fileName = $graph->imageName  . $extension;
+	my $filePath = $self->convertPath("gif/$fileName");
 	my $templateDirectory = $self->{envir}{templateDirectory};
 	$filePath = $self->surePathToTmpFile( $filePath );
 	my $refreshCachedImages = $self->PG_restricted_eval(q!$refreshCachedImages!);
 	# Check to see if we already have this graph, or if we have to make it
-	if (not -e $filePath # does it exist?
-			or ((stat "$templateDirectory".$self->{envir}{probFileName})[9] > (stat $filePath)[9]) # source has changed
-			or $self->{envir}{setNumber} =~ /Undefined_Set/ # problems from SetMaker and its ilk should always be redone
-			or $refreshCachedImages
+	if( not -e $filePath # does it exist?
+	  or ((stat "$templateDirectory".$self->{envir}{probFileName})[9] > (stat $filePath)[9]) # source has changed
+	  or $self->{envir}{setNumber} =~ /Undefined_Set/ # problems from SetMaker and its ilk should always be redone
+	  or $refreshCachedImages
 	) {
-		open(my $fh, ">", $filePath) || warn ("$0", "Can't open $filePath<BR>","");
-		chmod(0777, $filePath);
-		print $fh $graph->draw || warn("$0","Can't print graph to $filePath<BR>","");
-		close($fh) || warn("$0","Can't close $filePath<BR>","");
+		local(*OUTPUT);  # create local file handle so it won't overwrite other open files.
+ 		open(OUTPUT, ">$filePath")||warn ("$0","Can't open $filePath<BR>","");
+ 		chmod( 0777, $filePath);
+ 		print OUTPUT $graph->draw|| warn("$0","Can't print graph to $filePath<BR>","");
+ 		close(OUTPUT)||warn("$0","Can't close $filePath<BR>","");
 	}
 	$filePath;
-}
-
-=head2 getUniqueName
-
-	# Returns a unique file name for use in the problem
-	$name = getUniqueName('png');
-
-getUniqueName generates a unique file name for use in a problem.  Its single
-argument is the file type.  This is used internally by PGgraphmacros.pl and
-PGtikz.pl.
-
-=cut
-
-# Generate a unique file name in a problem based on the user, seed, set
-# number, and problem number.
-sub getUniqueName {
-	my $self = shift;
-	my $ext = shift;
-	my $num  = ++$self->{names_created};
-	my $resource = $self->{PG_alias}->make_resource_object("name$num", $ext);
-	$resource->path("__");
-	return $resource->create_unique_id;
 }
 
 =head1 Macros from IO.pm
@@ -793,7 +765,7 @@ sub AskSage {
 	my $self = shift;
 	my $python = shift;
 	my $options = shift;
-	$options->{curlCommand} = WeBWorK::PG::IO::curlCommand();
+	$options->{curlCommand} = $self->{envir}->{externalCurlCommand};
 	WeBWorK::PG::IO::AskSage($python, $options);
 }
  

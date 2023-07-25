@@ -12,7 +12,6 @@ sub init {
   $self->{name} = 'flag';
   $self->{Name} = 'Flag';
   $self->{namePattern} = qr/[-\w_.]+/;
-  $self->{allowAlias} = 0;
 }
 
 sub update {} # no pattern or tokens needed

@@ -118,6 +118,8 @@ Usage:
 	COMMENT('MathObject version.');
 	ENDDOCUMENT();
 
+=back
+
 =head1 AUTHORS
 
 Paul Pearson, Hope College, Department of Mathematics

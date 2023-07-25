@@ -96,12 +96,12 @@ or
 loadMacros("MathObjects.pl");
 
 sub _parserMultiAnswer_init {
-  main::PG_restricted_eval('sub MultiAnswer {parser::MultiAnswer->new(@_)}');
+  main::PG_restricted_eval('sub MultiAnswer {MultiAnswer->new(@_)}');
 }
 
 ##################################################
 
-package parser::MultiAnswer;
+package MultiAnswer;
 our @ISA = qw(Value);
 
 our $answerPrefix = "MuLtIaNsWeR_";  # answer rule prefix
@@ -291,8 +291,7 @@ sub single_check {
       push(@errors,'<TR VALIGN="TOP"><TD STYLE="text-align:right; border:0px" NOWRAP>' .
                    "<I>In answer $i</I>:&nbsp;</TD>".
                    '<TD STYLE="text-align:left; border:0px">'.$result->{ans_message}.'</TD></TR>');
-    }
-    $score += $result->{score};
+    } else {$score += $result->{score}}
   }
   $ans->score($score/$self->length);
   $ans->{ans_message} = $ans->{error_message} = "";

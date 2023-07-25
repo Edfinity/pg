@@ -12,8 +12,9 @@ $Parser::class->{Function} = 'Parser::Function';
 sub new {
   my $self = shift; my $class = ref($self) || $self;
   my $equation = shift; my $context = $equation->{context};
-  my ($name,$params,$constant,$ref) = @_; my $def;
-  ($name,$def) = $context->functions->resolve($name);
+  my ($name,$params,$constant,$ref) = @_;
+  my $def = $context->{functions}{$name};
+  $name = $def->{alias}, $def = $context->{functions}{$name} if defined $def->{alias};
   my $fn = bless {
     name => $name, params => $params,
     def => $def, ref => $ref, equation => $equation,
@@ -105,7 +106,7 @@ sub copy {
 sub call {
   my $self = shift; my $name = shift;
   my $context = Parser::Context->current;
-  my $fn = $context->functions->resolveDef($name);
+  my $fn = $context->{functions}{$name};
   Value::Error("No definition for function '%s'",$name) unless defined($fn);
   my $isFormula = 0;
   foreach my $x (@_) {return $self->formula($name,@_) if Value::isFormula($x)}
@@ -226,8 +227,8 @@ sub checkMatrix {
 sub checkInverse {
   my $equation = shift;
   my $fn = shift; my $op = shift; my $rop = shift;
-  $op = $equation->{context}->operators->resolveDef($op->{name});
-  $fn = $equation->{context}->functions->resolveDef($fn->{name});
+  $op = $equation->{context}{operators}{$op->{name}};
+  $fn = $equation->{context}{functions}{$fn->{name}};
   return ($fn->{inverse} && $op->{isInverse} && $rop->{value}->string eq "-1");
 }
 

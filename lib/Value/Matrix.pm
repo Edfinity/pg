@@ -20,9 +20,7 @@ L<http://webwork.maa.org/moodle/mod/forum/discuss.php?d=2978>
 
 Files interacting with Matrices:
 
-L<lib/MatrixReal1.pm>
-
-L<macros/MatrixReduce.pl>
+L<lib/MatrixReal1.pm> L<http://webwork.maa.org/pod/pg_TRUNK/macros/MatrixReduce.pl.html>
 
 L<lib/Matrix.pm> 
 
