@@ -953,8 +953,6 @@ package GeogebraWebApplet;
 use constant GEOGEBRAWEB_OBJECT_TEXT => <<'END_OBJECT_TEXT';
 <div class="enclose_geogebra_object">
 <div class="geogebra_object">
-  <script language="javascript">ww_applet_list["$appletName"].visible = 1; // don't submit things if not visible
-  </script>
 $webgeogebraParameters
 </div>
 </div>
