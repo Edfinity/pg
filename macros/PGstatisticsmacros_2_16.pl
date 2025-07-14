@@ -1,3 +1,8 @@
+# Updated July, 2025 by Edfinity to use Math::Cephes instead of
+# Distributions for more accurate algorithms and to speed up calculations.
+# See: https://metacpan.org/pod/Math::Cephes
+# Distributions is still included for compatibility.
+
 sub _PGstatisticsmacros_2_16_init {
 		foreach my $t (@Distributions::EXPORT_OK) {
 				*{$t} = *{"Distributions::$t"}
@@ -22,12 +27,14 @@ Computes the probability of x being in the interval (a,b) for normal distributio
 The first two arguments are required. Use '-infty' for negative infinity, and 'infty' or '+infty' for positive infinity.
 The mean and deviation are optional, and are 0 and 1 respectively by default.
 
+This was updated to use a helper function pnorm using Math::Cephes.
+
 =cut
 
 sub normal_prob {
 	my $a = shift;
 	my $b = shift;
- 	my %options=@_;
+ 	my %options = @_;
 
 	my $mean = $options{'mean'} // 0;
 	my $deviation = $options{'deviation'} // 1;
@@ -42,31 +49,41 @@ sub normal_prob {
 		if ( $b =~ /^[+-]?(?:inf|infty|infinity)$/i ) {
 			$prob = ($b =~ /-/) ? 0 : 1; # did you really need us to tell you that?
 		} else {
-			my $z_score_of_b = ( $b - $mean ) / $deviation;
-			$prob = 1 - uprob($z_score_of_b);
+			$prob = pnorm($b, $mean, $deviation);
 		}
-	} elsif ( $a =~ /^\+?(?:inf|infty|infinity)$/i ) {
-		if ( $b =~ /^\+?(?:inf|infty|infinity)$/i ) {
+	} elsif ( $a =~ /^~~+?(?:inf|infty|infinity)$/i ) {
+		if ( $b =~ /^~~+?(?:inf|infty|infinity)$/i ) {
 			$prob = 0;
 		} else {
 			warn 'normal_prob requires a <= b, please check your inputs.';
 			return;
 		}
 	} else {
-		my $z_score_of_a = ( $a - $mean ) / $deviation;
-		if ( $b =~ /^\+?(?:inf|infty|infinity)$/i ) {
-			$prob = uprob($z_score_of_a);
+		if ( $b =~ /^~~+?(?:inf|infty|infinity)$/i ) {
+			$prob = 1 - pnorm($a, $mean, $deviation);
 		} elsif ( $b =~ /^-(?:inf|infty|infinity)$/i || $a >= $b ) {
 			warn 'normal_prob requires a <= b, please check your inputs.';
 			return;
 		} else {
-            my $z_score_of_b = ( $b - $mean ) / $deviation;
-			$prob = uprob($z_score_of_a) - uprob($z_score_of_b);
+			$prob = pnorm($b, $mean, $deviation) - pnorm($a, $mean, $deviation);
 		}
 	}
 
 	return $prob;
-}
+};
+
+# This is new; behaves like R's pnorm.
+sub pnorm {
+    my ($x, $mu, $sigma) = @_;
+
+	if ( $sigma <= 0 ) {
+		warn 'Deviation must be a positive number.';
+		return;
+	}
+	
+    my $z = ($x - $mu) / $sigma;
+    return Math::Cephes::ndtr($z);
+};
 
 =head3 "Inverse" of normal distribution
 
@@ -80,32 +97,230 @@ optional, and are 0 and 1 respectively by default.
 Caution: since students may use tables, they may only be able to provide the answer correct to 2 or 3
 decimal places. Use tolerance when evaluating answers.
 
+This was updated to use a helper function qnorm using Math::Cephes.
+
 =cut
 
 sub normal_distr {
-
 	my $prob = shift;
-	my %options=@_;
+	my %options = @_;
 
 	my $mean      = $options{'mean'}      // 0;
 	my $deviation = $options{'deviation'} // 1;
 
 	if ($deviation <= 0) {
-		warn 'Deviation must be a positive number.';
+		die 'Deviation must be a positive number.';
 		return;
 	}
 	if ($prob < 0 || $prob >= 0.5) {
-		warn 'Probability must be non-negative and strictly less than 0.5';
+		die 'Probability must be non-negative and strictly less than 0.5';
 		return;
 	}
+    return qnorm(0.5 + $prob, $mean, $deviation);
+};
 
-	$prob = 0.5 - $prob;
-	my $z_score_of_b = udistr($prob);
+# This is new; behaves like R's qnorm.
+sub qnorm {
+    my ($p, $mu, $sigma) = @_;
+    die "qnorm: sigma must be > 0" unless $sigma > 0;
 
-	my $b = $z_score_of_b * $deviation + $mean;
-	$b;
+    return $mu + $sigma * Math::Cephes::ndtri($p);
+};
+
+####################################################################################
+####################################################################################
+####################################################################################
+# The remaining distribution functions below (and above stats_mean) are
+# new using Math::Cephes. Equivalents exist in Distributions with different names.
+
+# CDF of Student’s t with df degrees of freedom: pt($q, $df)
+# This is 1 - tprob from Distributions, so we've included new_tprob
+# to replace all the tprob calls.
+# Behaves like R's pt function.
+sub pt {
+    my ($q, $df) = @_;
+    die "pt: degrees of freedom df must be positive" unless $df > 0;
+    return Math::Cephes::stdtr($df, $q);
+};
+
+sub new_tprob {
+	my ($df, $q) = @_;
+	return 1 - pt($q, $df);
 }
 
+
+# Inverse t-distribution. Note that this is the same as tdistr($df, 1 - $p);
+sub qt {
+    my ($p, $df) = @_;
+    die "qt: degrees of freedom df must be positive" unless $df > 0;
+    die "qt: p must be in (0,1)" unless $p > 0 && $p < 1;
+
+    # Handle the integer case with stdtri since it's faster
+    return Math::Cephes::stdtri($df, $p) if ($df == int($df));
+
+    # 1) fold into two-sided tail
+    my $p2 = $p < 0.5 ? 2*$p : 2*(1 - $p);
+
+    # 2) invert the incomplete beta I_x(ν/2, ½) = p2
+    my $x = Math::Cephes::incbi( $df/2, 0.5, $p2 );
+
+    # 3) compute t = sqrt( ν (1 − x) / x )
+    my $t = sqrt( $df * (1 - $x) / $x );
+
+    # 4) restore sign
+    return $p < 0.5 ? -$t : $t;
+};
+
+sub new_tdistr {
+	my ($df, $p) = @_;
+	return qt(1 - $p, $df);
+}
+
+
+
+# CDF of (central or non-central) chisquared: pchisq(q, df, %options)
+# Behaves similarly to R's function of the same name.
+# Note that this is the same as 1 - chisqrprob($df, $q);
+# Options:
+#   ncp => non-centrality parameter (≥ 0), defaults to 0
+sub pchisq {
+    my ($q, $df, %opts) = @_;
+    my $ncp = defined $opts{ncp} ? $opts{ncp} : 0;
+
+    die "pchisq: q must be nonnegative"    unless $q  >= 0;
+    die "pchisq: df must be positive"      unless $df >  0;
+    die "pchisq: ncp must be nonnegative"  unless $ncp >= 0;
+
+    # central chisqr CDF when ncp == 0
+    return Math::Cephes::igam($df/2, $q/2) if $ncp == 0;
+
+    # non-central chisqr CDF via Poisson‐weighted mixture
+    my $lambda = $ncp / 2;
+    my $term   = Math::Cephes::exp(-$lambda);     # weight for k = 0
+    my $sum    = 0;
+    my $k      = 0;
+    my $tol    = 1e-18;             # stop when weight < tol
+    my $maxk   = 25;              # safety cap on iterations
+
+    while (1) {
+        my $dfk = $df + 2 * $k;
+        my $pk  = Math::Cephes::igam($dfk/2, $q/2);
+        $sum += $term * $pk;
+
+        last if $term < $tol || $k >= $maxk;
+        $k++;
+        $term *= $lambda / $k;
+    }
+
+    return $sum;
+}
+
+sub new_chisqrprob {
+	my ($df, $q) = @_;
+	return 1 - pchisq($q, $df);
+}
+
+
+# Quantile of (central or non-central) chisqr: qchisq(p, df, %opts)
+# Behaves similarly to R's function of the same name.
+# Note that this is the same as chisqrdistr($df, 1 - $p);
+# Options:
+#   ncp => non-centrality parameter (≥ 0), defaults to 0
+sub qchisq {
+    my ($p, $df, %opts) = @_;
+    my $ncp = defined $opts{ncp} ? $opts{ncp} : 0;
+
+    die "qchisq: the probability must be in (0,1)"    unless $p > 0 && $p < 1;
+    die "qchisq: df must be positive"                 unless $df > 0;
+    die "qchisq: ncp must be nonnegative"             unless $ncp >= 0;
+
+    # central chisqr quantile via igami on the upper tail:
+    return (2 * Math::Cephes::igami($df/2, 1 - $p)) if ($ncp == 0);
+
+    # non-central: invert pchisq by bisection
+    # initial bracket
+    my $lower = 0;
+    # heuristic upper: mean+ncp + 10*sd
+    my $mean  = $df + $ncp;
+    my $sd    = sqrt(2*$df + 4*$ncp);
+    my $upper = $mean + 10 * $sd;
+    # ensure upper bound is above target
+    while (pchisq($upper, $df, ncp => $ncp) < $p) {
+        $upper *= 2;
+    }
+
+    # bisection parameters
+    my $tol_x = 1e-18;    # stop when bracket is this small
+    my $tol_p = 1e-25;    # stop when CDF error is this small
+    my $maxit = 40;       # safety cap
+
+    for my $i (1..$maxit) {
+        my $mid = 0.5 * ($lower + $upper);
+        my $pm  = pchisq($mid, $df, ncp => $ncp);
+
+        my $diff = $pm - $p;
+        last if abs($diff) < $tol_p || ($upper - $lower) < $tol_x;
+
+        if ($pm < $p) {
+            $lower = $mid;
+        }
+        else {
+            $upper = $mid;
+        }
+    }
+
+    return 0.5 * ($lower + $upper);
+}
+
+sub new_chisqrdistr {
+	my ($df, $p) = @_;
+	return qchisq(1 - $p, $df);
+}
+
+
+
+# CDF of (central or non‐central) F: pf(q, df1, df2)
+# Behaves similarly to R's function of the same name.
+# Note that this is the same as 1 - fprob($df1, $df2, $q);
+sub pf {
+    my ($q, $df1, $df2) = @_;
+
+    die "pf: q must be nonnegative"       unless defined $q  && $q  >= 0;
+    die "pf: df1 must be positive"        unless defined $df1 && $df1 > 0;
+    die "pf: df2 must be positive"        unless defined $df2 && $df2 > 0;
+
+    # central F‐CDF:
+    return Math::Cephes::fdtr($df1, $df2, $q);
+}
+
+sub new_fprob {
+    my ($df1, $df2, $q) = @_;
+    return 1 - pf($q, $df1, $df2);
+}
+
+
+# Quantile of central F: qf(p, df1, df2)
+# Behaves similarly to R's function of the same name.
+# Note that this is the same as fdistr($df1, $df2, 1 - $p);
+sub qf {
+    my ($p, $df1, $df2) = @_;
+
+    die "qf: p must be between 0 and 1"   unless $p > 0 && $p < 1;
+    die "qf: df1 must be positive"        unless $df1 > 0;
+    die "qf: df2 must be positive"        unless $df2 > 0;
+
+    # central F‐CDF:
+    return Math::Cephes::fdtri($df1, $df2, 1 - $p);
+}
+
+sub new_fdistr {
+    my ($df1, $df2, $p) = @_;
+    return qf(1 - $p, $df1, $df2);
+}
+
+####################################################################################
+####################################################################################
+####################################################################################
 
 =head3 Mean function
 
@@ -222,11 +437,11 @@ Generates N normally distributed random numbers with the given mean and standard
 
 =cut
 
-sub urand { # generate normally dist. random numbers 
+sub urand { # generate normally dist. random numbers
 # urand(mean,sd,N,digits)
-# Generates N random numbers. The distribution is set by 
-# mean equal to "mean" and the standard deviation given by 
-# "sd." The value of 'digits' gives the number of decimal 
+# Generates N random numbers. The distribution is set by
+# mean equal to "mean" and the standard deviation given by
+# "sd." The value of 'digits' gives the number of decimal
 # places to return.
 	my ($mean, $sd, $N, $digits) = @_;
 	if ($N<=0) {
@@ -304,13 +519,13 @@ sub exprand { # generate exponentially dist. numbers  Exp(x,lambda)
 
 	Usage: poissonrand(lambda,N)
 
-Generates N Poisson distributed random numbers with the given parameter, lambda. 
+Generates N Poisson distributed random numbers with the given parameter, lambda.
 
 =cut
 
 sub poissonrand { # generate random, Poisson dist. numbers  Pois(lambda)
 # poissonrand(lambda,N)
-# Generates N random numbers. The distribution is Poisson with  parameter lambda.  
+# Generates N random numbers. The distribution is Poisson with  parameter lambda.
 
 	my ($lambda,$N) = @_;
 	if ($lambda<=0) {
@@ -327,18 +542,18 @@ sub poissonrand { # generate random, Poisson dist. numbers  Pois(lambda)
 	{
 			# Generate an Poisson dist. random number.
 			$N -= 1;
-			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0)/$poisFactor;  # The cumulative prob. 
+			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0)/$poisFactor;  # The cumulative prob.
 			                                                                            # Need to find k to match this.
 			my $k = 0;                         # The new, random number.
-			my $currentProb = 1.0;             # P(x=k|lambda)
+			my $current_prob = 1.0;             # P(x=k|lambda)
 			my $trialCumProb = 1.0;            # The cumulative prob, P(x<=k|lambda)
 			while($trialCumProb < $cumProb)
 			{
 					# Find the prob and update the cumulative prob. for the next value of k.
 					# Stop when we exceed the target cumulative prob.
 					$k++;
-					$currentProb *= $lambda/$k;
-					$trialCumProb += $currentProb;
+					$current_prob *= $lambda/$k;
+					$trialCumProb += $current_prob;
 			}
 			push(@numbers,$k); # Add this number to the list!
 	}
@@ -380,25 +595,25 @@ sub binomrand { # generate random, binomial dist. numbers  Bin(n,p)
 	{
 			# Generate an binomially dist. random number.
 			$num -= 1;
-			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0);  # The cumulative prob. 
+			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0);  # The cumulative prob.
 			                                                                # Need to find k to match this.
 			my $k;  # The new, random number.
 
 			# Determine the prob. that X=0.
-			my $currentProb = 1.0;
+			my $current_prob = 1.0;
 			for($k=0;$k<$N;++$k)
 			{
-					$currentProb *= (1.0-$p);
+					$current_prob *= (1.0-$p);
 			}
 
 			$k = 0;
-			my $trialCumProb = $currentProb;
+			my $trialCumProb = $current_prob;
 			while(($trialCumProb < $cumProb) && ($k <= $N))
 			{
 					# Find the prob and update the cumulative prob. for the next value of k.
 					# Stop when we exceed the target cumulative prob.
-					$currentProb *= ($N-$k)*$p/(($k+1)*(1.0-$p));
-					$trialCumProb += $currentProb;
+					$current_prob *= ($N-$k)*$p/(($k+1)*(1.0-$p));
+					$trialCumProb += $current_prob;
 					$k++;
 			}
 			push(@numbers,$k);
@@ -415,8 +630,8 @@ sub binomrand { # generate random, binomial dist. numbers  Bin(n,p)
 
 	Usage: bernoullirand(p,num,{"success"=>"1","failure"=>"0"})
 
-Generates num Bernoulli distributed random numbers with  parameter p. The 
-value for a success is given by the optional "success" parameter. The 
+Generates num Bernoulli distributed random numbers with  parameter p. The
+value for a success is given by the optional "success" parameter. The
 value for a failure is given by the optional "failure" parameter.
 
 =cut
@@ -443,7 +658,7 @@ sub bernoullirand { # generate random, Bernoulli dist. numbers  B(p)
         }
         else
         {
-            if (!defined($options->{'success'})) 
+            if (!defined($options->{'success'}))
                 {
                     # Define the default value for a success
                     $options->{'success'} = 1;
@@ -513,8 +728,8 @@ array is the value assocated with the probability.
 sub discreterand { # generate random, values based on a given table
 # discreterand($n,@tableOfProbabilities)
 # Generates num random results. The distribution is in the given array.
-# Each element in the array is itself an array. 
-# The first value in the array is the probability. 
+# Each element in the array is itself an array.
+# The first value in the array is the probability.
 # The second value in the array is the value assocated with the probability.
 
     my $num = shift;  # Number of values to generate
@@ -615,8 +830,8 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 	{
 			++$rows;
 			my @row = @{$lupe};
-			if($columns eq 'nd') 
-			{ 
+			if($columns eq 'nd')
+			{
 					# This is the first time through. Set the number of columns
 					# and initialize the column totals with zeros.
 					$columns = 1+$#row;
@@ -634,7 +849,7 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 			# Add up the totals for this row and each column.
 			my $sum = 0;
 			for($innerLupe=0;$innerLupe<$columns;++$innerLupe)
-			{ 
+			{
 					$sum += $row[$innerLupe];
 					$columnTotals[$innerLupe] += $row[$innerLupe];
 					$totalSum += $row[$innerLupe];
@@ -664,9 +879,9 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 =pod
 
 	Usage: ($t,$df,$p) = t_test(t_test(mu,@data);                       # Perform a two-sided t-test.
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test 
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test 
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test 
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test
 
 Computes the t-statistic, the number of degrees of freedom, and the
 p-value after performing a t-test on the given data. the value of mu
@@ -677,9 +892,9 @@ set whether or not a left, right, or two-sided test will be conducted.
 
 sub t_test {
 #	 Usage: ($t,$df,$p) = t_test(mu,@data);                       # Perform a two-sided t-test.
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test 
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test 
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test 
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test
 #
 # example:
 #
@@ -730,19 +945,19 @@ sub t_test {
 		if($args->{test} eq 'left')
 		{
 				# This is a left sided test. Find the area to the left.
-				$p = 1.0 - tprob($N-1,$t);
+				$p = 1.0 - new_tprob($N-1,$t);
 		}
 
 		elsif($args->{test} eq 'right')
 		{
 				# This is a right sided test. Find the area to the left.
-				$p = tprob($N-1,$t);
+				$p = new_tprob($N-1,$t);
 		}
 
 		else
 		{
 				# This is a two sided test. Find the area to the left.
-				$p = 2.0*tprob($N-1,abs($t));
+				$p = 2.0*new_tprob($N-1,abs($t));
 		}
 
 		($t,$N-1,$p);
@@ -754,9 +969,9 @@ sub t_test {
 =pod
 
 	Usage: ($t,$df,$p) = two_sample_t_test(\@data1,\@data2);                       # Perform a two-sided t-test.
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'right'});     # Perform a right sided t-test 
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'left'});      # Perform a left sided t-test 
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'two-sided'}); # Perform a left sided t-test 
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'right'});     # Perform a right sided t-test
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'left'});      # Perform a left sided t-test
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'two-sided'}); # Perform a left sided t-test
 
 Computes the t-statistic, the number of degrees of freedom, and the
 p-value after performing a two sample t-test on the given data.  The
@@ -827,13 +1042,13 @@ sub two_sample_t_test {
 		if($args{'variance'} eq "separate")
 		{
 				# Use the separate variance formula to calculate the t statistic
-				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx)/($nx*($nx-1.0)) + 
+				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx)/($nx*($nx-1.0)) +
 																						 ($sum_squares_y-$sum_y*$sum_y/$ny)/($ny*($ny-1.0)));
 		}
 		else
 		{
 				# Use the pooled variance formula to calculate the t statistic
-				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx + 
+				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx +
 																							$sum_squares_y-$sum_y*$sum_y/$ny)/
 																						 ($nx+$ny-2.0)*(1.0/$nx+1.0/$ny));
 		}
@@ -843,19 +1058,19 @@ sub two_sample_t_test {
 		if($args{test} eq 'left')
 		{
 				# This is a left sided test. Find the area to the left.
-				$p = 1.0 - tprob($df,$t);
+				$p = 1.0 - new_tprob($df,$t);
 		}
 
 		elsif($args{test} eq 'right')
 		{
 				# This is a right sided test. Find the area to the left.
-				$p = tprob($df,$t);
+				$p = new_tprob($df,$t);
 		}
 
 		else
 		{
 				# This is a two sided test. Find the area to the left.
-				$p = 2.0*tprob($df,abs($t));
+				$p = 2.0*new_tprob($df,abs($t));
 		}
 
 		($t,$df,$p);
@@ -868,7 +1083,7 @@ sub two_sample_t_test {
 
 	Usage: insertDataLink($PG,linkText,@dataRefs)
 
-Writes the given data to a file and creates a link to the data file. The string headerTitle is the label used in the anchor link. 
+Writes the given data to a file and creates a link to the data file. The string headerTitle is the label used in the anchor link.
 		$PG is a ref to an instance of a PGcore object. (Generally just use $PG in a problem)
     linkText is the text to appear in the anchor/link.
     @dataRefs is a list of references. Each reference is assumed to be ref to an array.
@@ -1007,7 +1222,7 @@ sub five_point_summary {
 	} # if($args->{method} eq 'proper')
 
 
-	elsif ($args->{method} eq 'includeMedian') 
+	elsif ($args->{method} eq 'includeMedian')
 	{
 			# Find the five point summary using the simplest rules. Here we
 			# do use the median when calculating the quartiles.
@@ -1050,10 +1265,10 @@ sub five_point_summary {
 					}
 			}
 
-	} # if ($args->{method} eq 'includeMedian') 
+	} # if ($args->{method} eq 'includeMedian')
 
 
-	else 
+	else
 	{
 			# Find the five point summary using the simplest rules. Here we
 			# do not use the median when calculating the quartiles.
@@ -1240,4 +1455,3 @@ sub frequencies {
 ##########################################
 
 1;
-
