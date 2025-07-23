@@ -1,12 +1,11 @@
-# Updated July, 2025 by Edfinity to use Math::Cephes instead of
+# Updated July, 2025 by Edfinity to use Math::Cephes instead of  
 # Distributions for more accurate algorithms and to speed up calculations.
 # See: https://metacpan.org/pod/Math::Cephes
-# Distributions is still included for compatibility.
 
 sub _PGstatisticsmacros_2_16_init {
-		foreach my $t (@Distributions::EXPORT_OK) {
-				*{$t} = *{"Distributions::$t"}
-		}
+		# foreach my $t (@Distributions::EXPORT_OK) {
+		# 		*{$t} = *{"Distributions::$t"}
+		# }
 		foreach my $t (@Regression::EXPORT_OK) {
 				*{$t} = *{"Regression::$t"}
 		}
@@ -51,15 +50,15 @@ sub normal_prob {
 		} else {
 			$prob = pnorm($b, $mean, $deviation);
 		}
-	} elsif ( $a =~ /^~~+?(?:inf|infty|infinity)$/i ) {
-		if ( $b =~ /^~~+?(?:inf|infty|infinity)$/i ) {
+	} elsif ( $a =~ /^\+?(?:inf|infty|infinity)$/i ) {
+		if ( $b =~ /^\+?(?:inf|infty|infinity)$/i ) {
 			$prob = 0;
 		} else {
 			warn 'normal_prob requires a <= b, please check your inputs.';
 			return;
 		}
 	} else {
-		if ( $b =~ /^~~+?(?:inf|infty|infinity)$/i ) {
+		if ( $b =~ /^\+?(?:inf|infty|infinity)$/i ) {
 			$prob = 1 - pnorm($a, $mean, $deviation);
 		} elsif ( $b =~ /^-(?:inf|infty|infinity)$/i || $a >= $b ) {
 			warn 'normal_prob requires a <= b, please check your inputs.';
@@ -83,6 +82,12 @@ sub pnorm {
 	
     my $z = ($x - $mu) / $sigma;
     return Math::Cephes::ndtr($z);
+};
+
+# This is what was in Distributions, but now uses Cephes.
+sub uprob {
+    my ($z) = @_;
+    return 1 - pnorm($z, 0, 1);
 };
 
 =head3 "Inverse" of normal distribution
@@ -123,8 +128,15 @@ sub normal_distr {
 sub qnorm {
     my ($p, $mu, $sigma) = @_;
     die "qnorm: sigma must be > 0" unless $sigma > 0;
-
+    
     return $mu + $sigma * Math::Cephes::ndtri($p);
+};
+
+# This is what was in Distributions, but now uses Cephes.
+sub udistr {
+    my ($p) = @_;
+	die 'Probability must be in (0,1)' if ($p <= 0 || $p >= 1);
+    return qnorm(1 - $p, 0, 1);
 };
 
 ####################################################################################
@@ -134,16 +146,26 @@ sub qnorm {
 # new using Math::Cephes. Equivalents exist in Distributions with different names.
 
 # CDF of Student’s t with df degrees of freedom: pt($q, $df)
-# This is 1 - tprob from Distributions, so we've included new_tprob
+# This is 1 - tprob from Distributions, so we've included tprob
 # to replace all the tprob calls.
 # Behaves like R's pt function.
 sub pt {
     my ($q, $df) = @_;
     die "pt: degrees of freedom df must be positive" unless $df > 0;
-    return Math::Cephes::stdtr($df, $q);
+    return Math::Cephes::stdtr($df, $q) if ($df == int($df));
+	
+    # continuous‐df: use the relation
+    #   P = ½·I_{ν/(ν+q²)}(ν/2, ½)   for q < 0
+    #   P = 1 − ½·I_{ν/(ν+q²)}(ν/2, ½) for q ≥ 0
+    my $x = $df / ($df + $q*$q);
+    my $I = Math::Cephes::incbet( $df/2, 0.5, $x );
+    
+    return $q < 0
+         ? 0.5 *     $I
+         : 1 - 0.5 * $I;
 };
 
-sub new_tprob {
+sub tprob {
 	my ($df, $q) = @_;
 	return 1 - pt($q, $df);
 }
@@ -154,10 +176,10 @@ sub qt {
     my ($p, $df) = @_;
     die "qt: degrees of freedom df must be positive" unless $df > 0;
     die "qt: p must be in (0,1)" unless $p > 0 && $p < 1;
-
+    
     # Handle the integer case with stdtri since it's faster
     return Math::Cephes::stdtri($df, $p) if ($df == int($df));
-
+    
     # 1) fold into two-sided tail
     my $p2 = $p < 0.5 ? 2*$p : 2*(1 - $p);
 
@@ -171,7 +193,8 @@ sub qt {
     return $p < 0.5 ? -$t : $t;
 };
 
-sub new_tdistr {
+# This is what was in Distributions, but now uses Cephes.
+sub tdistr {
 	my ($df, $p) = @_;
 	return qt(1 - $p, $df);
 }
@@ -215,7 +238,8 @@ sub pchisq {
     return $sum;
 }
 
-sub new_chisqrprob {
+# This is what was in Distributions, but now uses Cephes.
+sub chisqrprob {
 	my ($df, $q) = @_;
 	return 1 - pchisq($q, $df);
 }
@@ -272,7 +296,8 @@ sub qchisq {
     return 0.5 * ($lower + $upper);
 }
 
-sub new_chisqrdistr {
+# This is what was in Distributions, but now uses Cephes.
+sub chisqrdistr {
 	my ($df, $p) = @_;
 	return qchisq(1 - $p, $df);
 }
@@ -293,7 +318,8 @@ sub pf {
     return Math::Cephes::fdtr($df1, $df2, $q);
 }
 
-sub new_fprob {
+# This is what was in Distributions, but now uses Cephes.
+sub fprob {
     my ($df1, $df2, $q) = @_;
     return 1 - pf($q, $df1, $df2);
 }
@@ -313,9 +339,44 @@ sub qf {
     return Math::Cephes::fdtri($df1, $df2, 1 - $p);
 }
 
-sub new_fdistr {
+# This is what was in Distributions, but now uses Cephes.
+sub fdistr {
     my ($df1, $df2, $p) = @_;
     return qf(1 - $p, $df1, $df2);
+}
+
+
+# These two functions were in Distributions, almost exactly as is.
+sub expdistr { # Percentage points  Exp(x,lambda)
+# expdistr(p,lambda)
+# Returns the right sided quantile associated with the exponential distribution
+# with parameter lambda. That is, it returns the value of X so
+# that the area to the RIGHT of X with parameter lambda is equal
+# to p.
+	my ($p, $lambda) = @_;
+	if ($lambda <= 0) {
+		die "Invalid parameter lambda: $lambda (must be positive)\n"; # must be a positive number
+	}
+	if (($p <= 0) || ($p > 1)) {
+		die "Invalid p: $p (must be in (0,1))\n";
+	}
+	return (-log($p) / $lambda);
+}
+
+sub expprob { # Upper probability  Exp(x,lambda)
+# expprob(x,lambda)
+# This is the probability that an exponential distribution with 
+# parameter lambda is bigger than x. It is one minus the 
+# cumulative distribution of the exponential distribution with
+# parameter lambda
+	my ($x, $lambda) = @_;
+	if ($lambda <= 0) {
+		die "Invalid parameter lambda: $lambda (must be positive)\n"; # must be a positive number
+	}
+	if ($x<=0){
+		die "Invalid x: $x (must be positive)\n";
+	}
+	return exp(-$x * $lambda);
 }
 
 ####################################################################################
@@ -437,11 +498,11 @@ Generates N normally distributed random numbers with the given mean and standard
 
 =cut
 
-sub urand { # generate normally dist. random numbers
+sub urand { # generate normally dist. random numbers 
 # urand(mean,sd,N,digits)
-# Generates N random numbers. The distribution is set by
-# mean equal to "mean" and the standard deviation given by
-# "sd." The value of 'digits' gives the number of decimal
+# Generates N random numbers. The distribution is set by 
+# mean equal to "mean" and the standard deviation given by 
+# "sd." The value of 'digits' gives the number of decimal 
 # places to return.
 	my ($mean, $sd, $N, $digits) = @_;
 	if ($N<=0) {
@@ -519,13 +580,13 @@ sub exprand { # generate exponentially dist. numbers  Exp(x,lambda)
 
 	Usage: poissonrand(lambda,N)
 
-Generates N Poisson distributed random numbers with the given parameter, lambda.
+Generates N Poisson distributed random numbers with the given parameter, lambda. 
 
 =cut
 
 sub poissonrand { # generate random, Poisson dist. numbers  Pois(lambda)
 # poissonrand(lambda,N)
-# Generates N random numbers. The distribution is Poisson with  parameter lambda.
+# Generates N random numbers. The distribution is Poisson with  parameter lambda.  
 
 	my ($lambda,$N) = @_;
 	if ($lambda<=0) {
@@ -542,7 +603,7 @@ sub poissonrand { # generate random, Poisson dist. numbers  Pois(lambda)
 	{
 			# Generate an Poisson dist. random number.
 			$N -= 1;
-			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0)/$poisFactor;  # The cumulative prob.
+			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0)/$poisFactor;  # The cumulative prob. 
 			                                                                            # Need to find k to match this.
 			my $k = 0;                         # The new, random number.
 			my $current_prob = 1.0;             # P(x=k|lambda)
@@ -595,7 +656,7 @@ sub binomrand { # generate random, binomial dist. numbers  Bin(n,p)
 	{
 			# Generate an binomially dist. random number.
 			$num -= 1;
-			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0);  # The cumulative prob.
+			my $cumProb = $main::PG_random_generator->random(0.0,1.0,0.0);  # The cumulative prob. 
 			                                                                # Need to find k to match this.
 			my $k;  # The new, random number.
 
@@ -630,8 +691,8 @@ sub binomrand { # generate random, binomial dist. numbers  Bin(n,p)
 
 	Usage: bernoullirand(p,num,{"success"=>"1","failure"=>"0"})
 
-Generates num Bernoulli distributed random numbers with  parameter p. The
-value for a success is given by the optional "success" parameter. The
+Generates num Bernoulli distributed random numbers with  parameter p. The 
+value for a success is given by the optional "success" parameter. The 
 value for a failure is given by the optional "failure" parameter.
 
 =cut
@@ -658,7 +719,7 @@ sub bernoullirand { # generate random, Bernoulli dist. numbers  B(p)
         }
         else
         {
-            if (!defined($options->{'success'}))
+            if (!defined($options->{'success'})) 
                 {
                     # Define the default value for a success
                     $options->{'success'} = 1;
@@ -728,8 +789,8 @@ array is the value assocated with the probability.
 sub discreterand { # generate random, values based on a given table
 # discreterand($n,@tableOfProbabilities)
 # Generates num random results. The distribution is in the given array.
-# Each element in the array is itself an array.
-# The first value in the array is the probability.
+# Each element in the array is itself an array. 
+# The first value in the array is the probability. 
 # The second value in the array is the value assocated with the probability.
 
     my $num = shift;  # Number of values to generate
@@ -830,8 +891,8 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 	{
 			++$rows;
 			my @row = @{$lupe};
-			if($columns eq 'nd')
-			{
+			if($columns eq 'nd') 
+			{ 
 					# This is the first time through. Set the number of columns
 					# and initialize the column totals with zeros.
 					$columns = 1+$#row;
@@ -849,7 +910,7 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 			# Add up the totals for this row and each column.
 			my $sum = 0;
 			for($innerLupe=0;$innerLupe<$columns;++$innerLupe)
-			{
+			{ 
 					$sum += $row[$innerLupe];
 					$columnTotals[$innerLupe] += $row[$innerLupe];
 					$totalSum += $row[$innerLupe];
@@ -879,9 +940,9 @@ sub chisqrTable { # Given a two-way frequency table calculates the chi-squared t
 =pod
 
 	Usage: ($t,$df,$p) = t_test(t_test(mu,@data);                       # Perform a two-sided t-test.
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test
-  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test 
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test 
+  or:    ($t,$df,$p) = t_test(t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test 
 
 Computes the t-statistic, the number of degrees of freedom, and the
 p-value after performing a t-test on the given data. the value of mu
@@ -892,9 +953,9 @@ set whether or not a left, right, or two-sided test will be conducted.
 
 sub t_test {
 #	 Usage: ($t,$df,$p) = t_test(mu,@data);                       # Perform a two-sided t-test.
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test
-#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'right'});     # Perform a right sided t-test 
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'left'});      # Perform a left sided t-test 
+#  or:    ($t,$df,$p) = t_test(mu,@data,{'test'=>'two-sided'}); # Perform a left sided t-test 
 #
 # example:
 #
@@ -945,19 +1006,19 @@ sub t_test {
 		if($args->{test} eq 'left')
 		{
 				# This is a left sided test. Find the area to the left.
-				$p = 1.0 - new_tprob($N-1,$t);
+				$p = 1.0 - tprob($N-1,$t);
 		}
 
 		elsif($args->{test} eq 'right')
 		{
 				# This is a right sided test. Find the area to the left.
-				$p = new_tprob($N-1,$t);
+				$p = tprob($N-1,$t);
 		}
 
 		else
 		{
 				# This is a two sided test. Find the area to the left.
-				$p = 2.0*new_tprob($N-1,abs($t));
+				$p = 2.0*tprob($N-1,abs($t));
 		}
 
 		($t,$N-1,$p);
@@ -969,9 +1030,9 @@ sub t_test {
 =pod
 
 	Usage: ($t,$df,$p) = two_sample_t_test(\@data1,\@data2);                       # Perform a two-sided t-test.
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'right'});     # Perform a right sided t-test
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'left'});      # Perform a left sided t-test
-  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'two-sided'}); # Perform a left sided t-test
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'right'});     # Perform a right sided t-test 
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'left'});      # Perform a left sided t-test 
+  or:    ($t,$df,$p) = two_sample_t_test(\@data1,\@data2,{'test'=>'two-sided'}); # Perform a left sided t-test 
 
 Computes the t-statistic, the number of degrees of freedom, and the
 p-value after performing a two sample t-test on the given data.  The
@@ -1042,13 +1103,13 @@ sub two_sample_t_test {
 		if($args{'variance'} eq "separate")
 		{
 				# Use the separate variance formula to calculate the t statistic
-				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx)/($nx*($nx-1.0)) +
+				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx)/($nx*($nx-1.0)) + 
 																						 ($sum_squares_y-$sum_y*$sum_y/$ny)/($ny*($ny-1.0)));
 		}
 		else
 		{
 				# Use the pooled variance formula to calculate the t statistic
-				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx +
+				$t = ($sum_x/$nx - $sum_y/$ny)/sqrt( ($sum_squares_x-$sum_x*$sum_x/$nx + 
 																							$sum_squares_y-$sum_y*$sum_y/$ny)/
 																						 ($nx+$ny-2.0)*(1.0/$nx+1.0/$ny));
 		}
@@ -1058,19 +1119,19 @@ sub two_sample_t_test {
 		if($args{test} eq 'left')
 		{
 				# This is a left sided test. Find the area to the left.
-				$p = 1.0 - new_tprob($df,$t);
+				$p = 1.0 - tprob($df,$t);
 		}
 
 		elsif($args{test} eq 'right')
 		{
 				# This is a right sided test. Find the area to the left.
-				$p = new_tprob($df,$t);
+				$p = tprob($df,$t);
 		}
 
 		else
 		{
 				# This is a two sided test. Find the area to the left.
-				$p = 2.0*new_tprob($df,abs($t));
+				$p = 2.0*tprob($df,abs($t));
 		}
 
 		($t,$df,$p);
@@ -1083,7 +1144,7 @@ sub two_sample_t_test {
 
 	Usage: insertDataLink($PG,linkText,@dataRefs)
 
-Writes the given data to a file and creates a link to the data file. The string headerTitle is the label used in the anchor link.
+Writes the given data to a file and creates a link to the data file. The string headerTitle is the label used in the anchor link. 
 		$PG is a ref to an instance of a PGcore object. (Generally just use $PG in a problem)
     linkText is the text to appear in the anchor/link.
     @dataRefs is a list of references. Each reference is assumed to be ref to an array.
@@ -1222,7 +1283,7 @@ sub five_point_summary {
 	} # if($args->{method} eq 'proper')
 
 
-	elsif ($args->{method} eq 'includeMedian')
+	elsif ($args->{method} eq 'includeMedian') 
 	{
 			# Find the five point summary using the simplest rules. Here we
 			# do use the median when calculating the quartiles.
@@ -1265,10 +1326,10 @@ sub five_point_summary {
 					}
 			}
 
-	} # if ($args->{method} eq 'includeMedian')
+	} # if ($args->{method} eq 'includeMedian') 
 
 
-	else
+	else 
 	{
 			# Find the five point summary using the simplest rules. Here we
 			# do not use the median when calculating the quartiles.
