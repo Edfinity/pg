@@ -138,7 +138,21 @@ sub rserve_eval {
     _rserve_warn_no_config && return unless $Rserve->{host};
     
     my $query = shift;
-    
+
+    ######################################################################
+    # Edfinity per-problem timeout
+    my $timeout = $main::envir{rserve_timeout};
+    $timeout = $timeout - 1;
+
+    $query = <<"RS";
+    setTimeLimit(elapsed = $timeout, transient = TRUE)
+    {
+      $query
+    }
+RS
+    # End Edfinity per-problem timeout
+    ######################################################################
+
     rserve_start unless $rserve;
     
     my $result = Rserve::try_eval($rserve, $query);
@@ -151,6 +165,21 @@ sub rserve_query {
     
     my $query = shift;
     $query = "set.seed($problemSeed)\n" . $query;
+
+    ######################################################################
+    # Edfinity per-problem timeout
+    my $timeout = $main::envir{rserve_timeout};
+    $timeout = $timeout - 1;
+
+    $query = <<"RS";
+    setTimeLimit(elapsed = $timeout, transient = TRUE)
+    {
+      $query
+    }
+RS
+    # End Edfinity per-problem timeout
+    ######################################################################
+ 
     my $rserve_client = Rserve::access(server => $Rserve->{host}, _usesocket => 1);
     my $result = Rserve::try_eval($rserve_client, $query);
     $rserve_client->close;
