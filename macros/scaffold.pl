@@ -287,9 +287,6 @@ our $PG_OUTPUT = $main::PG->{OUTPUT_ARRAY};           # where PG stores the TEXT
 
 our $PREFIX = "$main::envir{QUIZ_PREFIX}Prob-$main::envir{questionNumber}";
 
-# Display scaffold problems in student mode in Edfinity
-$Scaffold::isLibrary = 0;
-
 #
 #  Scaffold::Begin() is used to start a new scaffold section, passing
 #  it any options that need to be overriden (e.g. is_open, can_open,
