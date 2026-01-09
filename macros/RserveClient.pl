@@ -133,30 +133,39 @@ sub rserve_finish {
     undef $rserve
 }
 
+sub _wrap_query_with_timeout {
+    my $query = shift;
+    my $timeout = $main::envir{rserve_timeout} - 1;
+    return <<"RS";
+    setTimeLimit(elapsed = $timeout, transient = TRUE)
+    {
+      $query
+    }
+RS
+}
 
 sub rserve_eval {
     _rserve_warn_no_config && return unless $Rserve->{host};
-    
-    my $query = shift;
-    
+
+    my $query = _wrap_query_with_timeout(shift);
+
     rserve_start unless $rserve;
     
     my $result = Rserve::try_eval($rserve, $query);
     Rserve::unref_rexp($result)
 }
 
-
 sub rserve_query {
     _rserve_warn_no_config && return unless $Rserve->{host};
     
-    my $query = shift;
-    $query = "set.seed($problemSeed)\n" . $query;
+    my $query = "set.seed($problemSeed)\n" . shift;
+    $query = _wrap_query_with_timeout($query);
+ 
     my $rserve_client = Rserve::access(server => $Rserve->{host}, _usesocket => 1);
     my $result = Rserve::try_eval($rserve_client, $query);
     $rserve_client->close;
     Rserve::unref_rexp($result)
 }
-
 
 sub rserve_start_plot {
     _rserve_warn_no_config && return unless $Rserve->{host};
