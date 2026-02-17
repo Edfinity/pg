@@ -6,38 +6,26 @@
 # This version is designed to be loaded outside the Safe compartment
 # and shared in, eliminating per-request compilation overhead.
 #
-# Key change: All main:: references are replaced with dynamic namespace
-# lookup via $PGML::_safe_ns, which is set when Format/Format2 is called.
+# All references to Safe-compartment symbols go through $PGML::_env,
+# a closure hash populated by _PGML_init() in macros/PGML.pl (which
+# runs inside Safe, where the symbols resolve naturally).
 #
 ######################################################################
 
 package PGML;
 
-# The current Safe compartment namespace - set by Format/Format2
-our $_safe_ns = 'main';
+our $_env;  # Closure hash — set per-request by _PGML_init() in PGML.pl
 our @warnings = ();
 our $warningsFatal = 0;
 
-# Helper to call a function in the Safe namespace
-sub _call {
-  my $func = shift;
-  no strict 'refs';
-  return &{"${_safe_ns}::${func}"}(@_);
-}
+# Call a function in the Safe namespace via closure
+sub _call { my $func = shift; $PGML::_env->{$func}->(@_) }
 
-# Helper to get a scalar from the Safe namespace
-sub _get_scalar {
-  my $name = shift;
-  no strict 'refs';
-  return ${"${_safe_ns}::${name}"};
-}
+# Get a scalar from the Safe namespace via closure
+sub _get_scalar { ${$PGML::_env->{$_[0]}} }
 
-# Helper to get a hash value from the Safe namespace
-sub _get_hash {
-  my ($name, $key) = @_;
-  no strict 'refs';
-  return ${"${_safe_ns}::${name}"}{$key};
-}
+# Get a hash value from the Safe namespace via closure
+sub _get_hash { ${$PGML::_env->{$_[0]}}{$_[1]} }
 
 sub Warning {
   my $warning = join("",@_);
@@ -706,8 +694,8 @@ sub replaceQuote {
 sub replaceVariable {
   my $self = shift; my $item = shift;
   my $block = $self->{block};
-  # Use dynamic namespace instead of hardcoded main::
-  my $var = "\$" . $PGML::_safe_ns . "::" . $item->{text};
+  # PG_restricted_eval runs inside Safe, where main:: is the Safe root
+  my $var = "\$main::" . $item->{text};
   ### check $var for whether it looks like a variable reference
   my ($result,$error) = PGML::Eval($var);
   PGML::Warning "Error evaluating variable \$$item->{text}: $error" if $error;
@@ -1552,8 +1540,6 @@ package PGML;
 
 sub Format {
   ClearWarnings();
-  # Capture the caller's namespace (Safe compartment root)
-  local $_safe_ns = _find_safe_namespace();
   my $parser = PGML::Parse->new(shift);
   my $format;
   my $displayMode = _get_scalar('displayMode');
@@ -1589,17 +1575,6 @@ sub LaTeX {
   }, $text);
 }
 
-# Find the Safe compartment namespace from the call stack
-sub _find_safe_namespace {
-  my $i = 0;
-  while (my @caller = caller($i++)) {
-    my $pkg = $caller[0];
-    # Safe compartments have roots like Safe::Root1, Safe::Root2, etc.
-    return $pkg if $pkg =~ /^Safe::Root\d+$/;
-  }
-  # Fallback to main if not called from within Safe
-  return 'main';
-}
 
 ######################################################################
 #

@@ -24,6 +24,24 @@ if (!$PGML::installed) {
 #
 
 sub _PGML_init {
+  # Populate the closure hash — these references resolve naturally inside
+  # Safe, so PGML.pm can call through them without symbolic dereferencing.
+  $PGML::_env = {
+    ANS                => \&ANS,
+    NAMED_ANS          => \&NAMED_ANS,
+    NAMED_ANS_RULE     => \&NAMED_ANS_RULE,
+    ans_rule           => \&ans_rule,
+    PG_restricted_eval => \&PG_restricted_eval,
+    lex_sort           => \&lex_sort,
+    general_math_ev3   => \&general_math_ev3,
+    EV3P               => \&EV3P,
+    String             => \&String,
+    WARN_MESSAGE       => \&WARN_MESSAGE,
+    PTX_cleanup        => \&PTX_cleanup,
+    displayMode        => \$displayMode,
+    context            => \%context,
+  };
+
   # Create the PGML function inside Safe that calls PGML::Format2
   PG_restricted_eval('sub PGML {PGML::Format2(@_)}');
 
