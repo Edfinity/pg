@@ -59,6 +59,18 @@ sub cleanup {
             }
         }
 
+        # context:: sub-packages created by macros (e.g., contextFraction.pl
+        # creates context::Fraction::BOP::divide, context::Fraction::Real, etc.)
+        my $context_pkg = "${root}::context::";
+        if (%{$context_pkg}) {
+            my @context_sub_pkgs = grep { /::$/ } keys %{$context_pkg};
+            for my $sub_pkg (@context_sub_pkgs) {
+                my $full_sub = "${context_pkg}${sub_pkg}";
+                %{$full_sub} = () if %{$full_sub};
+            }
+            %{$context_pkg} = ();
+        }
+
         # value:: sub-packages created by macros (e.g., contextSetOfSets.pl)
         my $value_pkg = "${root}::value::";
         if (%{$value_pkg}) {
