@@ -3,6 +3,20 @@
 # Injected via package reopening — keeps cleanup logic out of core modules.
 # Loaded by the renderer (xenophon) via: use PG::Cleanup;
 
+package PG::Cleanup;
+
+# Recursively clear a package namespace and all its sub-packages.
+# e.g., context::Fraction:: contains BOP::, and BOP:: contains divide::
+sub _erase_pkg_recursive {
+    my ($pkg) = @_;
+    no strict 'refs';
+    my @sub_pkgs = grep { /::$/ } keys %{$pkg};
+    for my $sub (@sub_pkgs) {
+        _erase_pkg_recursive("${pkg}${sub}");
+    }
+    %{$pkg} = ();
+}
+
 package PGcore;
 
 sub cleanup {
@@ -59,27 +73,12 @@ sub cleanup {
             }
         }
 
-        # context:: sub-packages created by macros (e.g., contextFraction.pl
-        # creates context::Fraction::BOP::divide, context::Fraction::Real, etc.)
-        my $context_pkg = "${root}::context::";
-        if (%{$context_pkg}) {
-            my @context_sub_pkgs = grep { /::$/ } keys %{$context_pkg};
-            for my $sub_pkg (@context_sub_pkgs) {
-                my $full_sub = "${context_pkg}${sub_pkg}";
-                %{$full_sub} = () if %{$full_sub};
-            }
-            %{$context_pkg} = ();
-        }
-
-        # value:: sub-packages created by macros (e.g., contextSetOfSets.pl)
-        my $value_pkg = "${root}::value::";
-        if (%{$value_pkg}) {
-            my @value_sub_pkgs = grep { /::$/ } keys %{$value_pkg};
-            for my $sub_pkg (@value_sub_pkgs) {
-                my $full_sub = "${value_pkg}${sub_pkg}";
-                %{$full_sub} = () if %{$full_sub};
-            }
-            %{$value_pkg} = ();
+        # context:: and value:: sub-packages created by macros
+        # (e.g., contextFraction.pl creates context::Fraction::BOP::divide, etc.
+        # and contextSetOfSets.pl creates value:: sub-packages).
+        # Must recurse because packages can be deeply nested.
+        for my $ns ("${root}::context::", "${root}::value::") {
+            PG::Cleanup::_erase_pkg_recursive($ns) if %{$ns};
         }
 
         # Erase Safe compartment symbol table
