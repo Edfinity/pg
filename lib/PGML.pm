@@ -245,7 +245,7 @@ sub End {
   my $block = $self->{block};
   $block->popItem if $block->topItem->{type} eq 'break' && $block->{type} ne 'align';
   while ($block->{type} ne 'root') {
-    if (ref($block->{terminator}) eq 'Regexp' || $block->{cancelPar}) {
+    if ($block->{cancelPar}) {
       $self->blockError("'%s' was not closed before $action");
     } else {
       $self->Terminate;
