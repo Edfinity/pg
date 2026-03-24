@@ -81,6 +81,13 @@ sub cleanup {
             PG::Cleanup::_erase_pkg_recursive($ns) if %{$ns};
         }
 
+        # Restore $Value::context to a valid default before erasing the
+        # compartment.  Without this, the global still points to a scalar
+        # inside the (now-cleared) compartment %context hash, so any code
+        # that dereferences $$Value::context between requests would crash
+        # with "Can't call method 'get' on an undefined value" (Value.pm:961).
+        $Value::context = \$Value::defaultContext;
+
         # Erase Safe compartment symbol table
         $self->{safe}->erase();
     }
