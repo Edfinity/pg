@@ -5,18 +5,6 @@
 
 package PG::Cleanup;
 
-# Recursively clear a package namespace and all its sub-packages.
-# e.g., context::Fraction:: contains BOP::, and BOP:: contains divide::
-sub _erase_pkg_recursive {
-    my ($pkg) = @_;
-    no strict 'refs';
-    my @sub_pkgs = grep { /::$/ } keys %{$pkg};
-    for my $sub (@sub_pkgs) {
-        _erase_pkg_recursive("${pkg}${sub}");
-    }
-    %{$pkg} = ();
-}
-
 package PGcore;
 
 sub cleanup {
@@ -71,14 +59,6 @@ sub cleanup {
                 }
                 %$ctx_hash = ();
             }
-        }
-
-        # context:: and value:: sub-packages created by macros
-        # (e.g., contextFraction.pl creates context::Fraction::BOP::divide, etc.
-        # and contextSetOfSets.pl creates value:: sub-packages).
-        # Must recurse because packages can be deeply nested.
-        for my $ns ("${root}::context::", "${root}::value::") {
-            PG::Cleanup::_erase_pkg_recursive($ns) if %{$ns};
         }
 
         # Restore $Value::context to a valid default before erasing the
