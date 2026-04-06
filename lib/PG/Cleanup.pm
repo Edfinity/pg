@@ -20,19 +20,6 @@ sub cleanup {
     $self->clear_internal_debug_messages();
 }
 
-package Value::Context;
-
-sub cleanup {
-    my $self = shift;
-    for my $key (qw(flags functions operators constants variables parens
-                     lists strings reduction value)) {
-        $self->{$key} = undef;
-    }
-    for my $obj_key (@{$self->{data}{objects} || []}) {
-        $self->{$obj_key} = undef;
-    }
-}
-
 package WeBWorK::PG::Translator;
 
 sub cleanup {
@@ -53,22 +40,12 @@ sub cleanup {
             my $ctx_hash = *{"${root}::context"}{HASH};
             if (ref($ctx_hash) eq 'HASH') {
                 for my $ctx_name (keys %$ctx_hash) {
-                    my $ctx = $ctx_hash->{$ctx_name};
-                    eval { $ctx->cleanup() } if ref($ctx) && $ctx->can('cleanup');
                     $ctx_hash->{$ctx_name} = undef;
                 }
                 %$ctx_hash = ();
             }
         }
 
-        # Restore $Value::context to a valid default before erasing the
-        # compartment.  Without this, the global still points to a scalar
-        # inside the (now-cleared) compartment %context hash, so any code
-        # that dereferences $$Value::context between requests would crash
-        # with "Can't call method 'get' on an undefined value" (Value.pm:961).
-        $Value::context = \$Value::defaultContext;
-
-        # Erase Safe compartment symbol table
         $self->{safe}->erase();
     }
 
