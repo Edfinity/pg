@@ -671,7 +671,7 @@ sub create_link_to_tmp_file {
 			$resource_object->{path}->{is_complete}         = 1;
 			$resource_object->{uri}->{is_complete}          = 1;
 		} else {
-			$self->warning_message( "The macro alias cannot create a link from |$linkPath|  to |".$resource_object->path()."|<BR>") ;
+			$self->warning_message( "The macro alias cannot create a link from |$linkPath|  to |".$resource_object->path()."|: $!<BR>") ;
 		}
 	} else {
 	# if the resource file doesn't exist
