@@ -632,17 +632,37 @@ sub create_link_to_tmp_file {
 	if (-e $resource_object->path( )) {
 	# if resource file exists
 		#################
-		# destroy the old link.
+		# reuse existing symlink if present (common case on shared EFS).
+		# UUID is deterministic, so an existing link always points to the correct target.
 		#################
-		if (-e $linkPath) {
-			unlink($linkPath) || $self->warning_message( "Unable to unlink alias file at |$linkPath|");
+		if (-l $linkPath) {
+			$resource_object->{path}->{is_accessible}       = 1;
+			$resource_object->{copy_link}->{link_to_path}   = $linkPath;
+			$resource_object->{path}->{is_accessible}       = (-r $linkPath);
+
+			$resource_object->uri($resource_uri);
+			$resource_object->{uri}->{is_accessible}        = $self->check_url($resource_object->uri());
+			$resource_object->{path}->{is_complete}         = 1;
+			$resource_object->{uri}->{is_complete}          = 1;
+			return;
 		}
 		#################
 		# create new link.
 		# create uri to this link
 		#################
 		if (symlink( $resource_object->path(), $linkPath)) {  #create the symlink
-			$resource_object->{path}->{is_accessible}       =1;
+			$resource_object->{path}->{is_accessible}       = 1;
+			$resource_object->{copy_link}->{link_to_path}   = $linkPath;
+			$resource_object->{path}->{is_accessible}       = (-r $linkPath);
+
+			$resource_object->uri($resource_uri);
+			$resource_object->{uri}->{is_accessible}        = $self->check_url($resource_object->uri());
+			$resource_object->{path}->{is_complete}         = 1;
+			$resource_object->{uri}->{is_complete}          = 1;
+		} elsif ($!{EEXIST}) {
+			# Another process created the link between our -l check and symlink() call.
+			# The link points to the correct target (deterministic UUID), so treat as success.
+			$resource_object->{path}->{is_accessible}       = 1;
 			$resource_object->{copy_link}->{link_to_path}   = $linkPath;
 			$resource_object->{path}->{is_accessible}       = (-r $linkPath);
 
@@ -651,7 +671,7 @@ sub create_link_to_tmp_file {
 			$resource_object->{path}->{is_complete}         = 1;
 			$resource_object->{uri}->{is_complete}          = 1;
 		} else {
-			$self->warning_message( "The macro alias cannot create a link from |$linkPath|  to |".$resource_object->path()."|<BR>") ;
+			$self->warning_message( "The macro alias cannot create a link from |$linkPath|  to |".$resource_object->path()."|: $!<BR>") ;
 		}
 	} else {
 	# if the resource file doesn't exist
