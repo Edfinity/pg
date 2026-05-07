@@ -9,6 +9,7 @@ use parent qw(PGcore);
 use strict;
 use warnings;
 use Opcode;
+use Time::HiRes ();
 use WWSafe;
 use Net::SMTP;
 use PGcore;
@@ -285,10 +286,13 @@ sub initialize {
     my $safe_cmpt = $self->{safe};
     #print "initializing safeCompartment",$safe_cmpt -> root(), "\n";
 
+    my $t0 = Time::HiRes::time();
     $safe_cmpt -> share_from('WeBWorK::PG::Translator',
 			     [keys %Translator_shared_subroutine_hash]);
+    my $t1 = Time::HiRes::time();
     $safe_cmpt -> share_from('WeBWorK::PG::IO',
 			     [keys %IO_shared_subroutine_hash]);
+    my $t2 = Time::HiRes::time();
     no strict;
     local(%envir) = %{ $self ->{envir} };
 	$safe_cmpt -> share('%envir');
@@ -299,9 +303,18 @@ sub initialize {
 	#$safe_cmpt -> share('$rf_answer_eval');
 	#$safe_cmpt -> share('$rf_restricted_eval');
 	use strict;
-    	
+	my $t3 = Time::HiRes::time();
+
 	$safe_cmpt -> share_from('main', $self->{ra_included_modules} );
 		# the above line will get changed when we fix the PG modules thing. heh heh.
+	my $t4 = Time::HiRes::time();
+
+	$self->{_init_timings} = {
+		init_pg_translator_ms => ($t1 - $t0) * 1000,
+		init_pg_io_ms         => ($t2 - $t1) * 1000,
+		init_envir_share_ms   => ($t3 - $t2) * 1000,
+		init_main_ms          => ($t4 - $t3) * 1000,
+	};
 }
 
 # -- Preloading has not been used for some time.
