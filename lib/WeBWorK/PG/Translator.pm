@@ -312,20 +312,20 @@ sub _recursive_stash_keys {
 sub _count_packages {
     no strict 'refs';
     my @stack = ('main::');
-    my %seen;
+    my %seen;  # keyed by hashref address (stash identity), not path string
     my $count = 0;
     my $max = 50000;
     while (@stack && $count < $max) {
         my $pkg = pop @stack;
-        next if $seen{$pkg}++;
-        # Skip Safe::Root\d+:: subtrees: those are stash aliases of main::
-        # entries, walking them just rediscovers the same physical stashes
-        # via different path strings and explodes %seen. Paths look like
-        # 'main::Safe::Root123::Foo::', so match the substring not anchored.
-        next if $pkg =~ /(?:^|::)Safe::Root\d/;
-        $count++;
-        my $stash_ref = eval { \%{$pkg} };
+        my $stash_ref = eval { \%{"$pkg"} };
         next unless ref $stash_ref;
+        # Dedupe on physical stash identity. Two different path strings
+        # (e.g. 'main::Foo::' and 'main::Safe::Root1::Foo::') can refer
+        # to the same hash via stash aliasing; we want to count each
+        # unique stash once, not once per path that reaches it.
+        my $addr = "$stash_ref";
+        next if $seen{$addr}++;
+        $count++;
         for my $key (keys %$stash_ref) {
             push @stack, "${pkg}${key}" if $key =~ /::$/;
         }
