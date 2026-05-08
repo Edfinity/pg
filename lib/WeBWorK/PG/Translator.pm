@@ -320,8 +320,9 @@ sub _count_packages {
         next if $seen{$pkg}++;
         # Skip Safe::Root\d+:: subtrees: those are stash aliases of main::
         # entries, walking them just rediscovers the same physical stashes
-        # via different path strings and explodes %seen.
-        next if $pkg =~ /^Safe::Root\d/;
+        # via different path strings and explodes %seen. Paths look like
+        # 'main::Safe::Root123::Foo::', so match the substring not anchored.
+        next if $pkg =~ /(?:^|::)Safe::Root\d/;
         $count++;
         my $stash_ref = eval { \%{$pkg} };
         next unless ref $stash_ref;
