@@ -282,6 +282,31 @@ my %Translator_shared_subroutine_hash = (
 my %IO_shared_subroutine_hash = %WeBWorK::PG::IO::SHARE;
 
 my $ra_included_modules_dumped = 0;
+my $parser_legacy_dumped = 0;
+
+sub _recursive_stash_keys {
+    my ($start_name) = @_;
+    no strict 'refs';
+    my $total = 0;
+    my @stack = ($start_name);
+    my %seen;
+    my $max_visits = 100000;
+    my $visits = 0;
+    while (@stack && $visits < $max_visits) {
+        my $current = pop @stack;
+        next if $seen{$current}++;
+        $visits++;
+        my $stash_ref = eval { \%{"$current"} };
+        next unless ref $stash_ref;
+        for my $key (keys %$stash_ref) {
+            $total++;
+            if ($key =~ /::$/) {
+                push @stack, "${current}${key}";
+            }
+        }
+    }
+    return $total;
+}
 
 sub initialize {
     my $self = shift;
@@ -330,6 +355,7 @@ sub initialize {
 	my $parser_legacy_keys = 0;
 	my $parser_keys = 0;
 	my $encode_encoding_keys = 0;
+	my $parser_legacy_recursive = 0;
 	{
 		no strict 'refs';
 		$main_stash_keys      = scalar(keys %{"main::"});
@@ -347,6 +373,23 @@ sub initialize {
 			}
 		}
 	}
+	$parser_legacy_recursive = _recursive_stash_keys("Parser::Legacy::");
+
+	if (!$parser_legacy_dumped) {
+		$parser_legacy_dumped = 1;
+		no strict 'refs';
+		my @entries;
+		for my $key (sort keys %{"Parser::Legacy::"}) {
+			my $sub_count = 0;
+			if ($key =~ /::$/) {
+				my $sub_name = "Parser::Legacy::${key}";
+				$sub_count = eval { scalar(keys %{$sub_name}) } || 0;
+			}
+			push @entries, "${key}=${sub_count}";
+		}
+		warn sprintf("PARSER_LEGACY_DUMP: pid=%d direct=%d recursive=%d entries=[%s]",
+			$$, scalar(@entries), $parser_legacy_recursive, join(',', @entries));
+	}
 
 	$self->{_init_timings} = {
 		init_pg_translator_ms => ($t1 - $t0) * 1000,
@@ -359,6 +402,7 @@ sub initialize {
 		parser_legacy_keys    => $parser_legacy_keys,
 		parser_keys           => $parser_keys,
 		encode_encoding_keys  => $encode_encoding_keys,
+		parser_legacy_recursive => $parser_legacy_recursive,
 	};
 }
 
