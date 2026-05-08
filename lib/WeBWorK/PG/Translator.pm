@@ -279,11 +279,25 @@ my %Translator_shared_subroutine_hash = (
 );
 
 # add names from WeBWorK::PG::IO and WeBWorK::PG::IO::*
-my %IO_shared_subroutine_hash = %WeBWorK::PG::IO::SHARE; 
+my %IO_shared_subroutine_hash = %WeBWorK::PG::IO::SHARE;
+
+my $ra_included_modules_dumped = 0;
 
 sub initialize {
     my $self = shift;
     my $safe_cmpt = $self->{safe};
+
+    if (!$ra_included_modules_dumped) {
+        $ra_included_modules_dumped = 1;
+        my $rim = $self->{ra_included_modules};
+        if (ref($rim) eq 'ARRAY') {
+            warn sprintf("RA_INCLUDED_MODULES_DUMP: pid=%d count=%d names=[%s]",
+                $$, scalar(@$rim), join(',', map { defined $_ ? $_ : 'undef' } @$rim));
+        } else {
+            warn sprintf("RA_INCLUDED_MODULES_DUMP: pid=%d not_an_array (ref=%s)",
+                $$, ref($rim) || 'undef');
+        }
+    }
     #print "initializing safeCompartment",$safe_cmpt -> root(), "\n";
 
     my $t0 = Time::HiRes::time();
