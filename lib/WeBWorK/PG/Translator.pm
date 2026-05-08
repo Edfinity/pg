@@ -327,13 +327,19 @@ sub initialize {
 	my $rim_count = ref($rim) eq 'ARRAY' ? scalar(@$rim) : 0;
 	my $rim_total_keys = 0;
 	my $main_stash_keys = 0;
+	my $parser_legacy_keys = 0;
+	my $parser_keys = 0;
+	my $encode_encoding_keys = 0;
 	{
 		no strict 'refs';
-		$main_stash_keys = scalar(keys %{"main::"});
+		$main_stash_keys      = scalar(keys %{"main::"});
+		$parser_legacy_keys   = scalar(keys %{"Parser::Legacy::"});
+		$parser_keys          = scalar(keys %{"Parser::"});
+		$encode_encoding_keys = scalar(keys %{"Encode::Encoding::"});
 		if (ref($rim) eq 'ARRAY') {
 			for my $name (@$rim) {
 				next unless defined $name && length $name;
-				(my $key = $name) =~ s/^\*//;
+				(my $key = $name) =~ s/^[\*\$\@\%\&]//;
 				$key =~ s/^main:://;
 				$key = $key =~ /::$/ ? $key : "${key}::";
 				my $n = eval { scalar(keys %{$key}) };
@@ -350,6 +356,9 @@ sub initialize {
 		init_main_count       => $rim_count,
 		init_main_keys        => $rim_total_keys,
 		main_stash_keys       => $main_stash_keys,
+		parser_legacy_keys    => $parser_legacy_keys,
+		parser_keys           => $parser_keys,
+		encode_encoding_keys  => $encode_encoding_keys,
 	};
 }
 
