@@ -10,6 +10,7 @@ use strict;
 use warnings;
 use Opcode;
 use Time::HiRes ();
+use mro;
 use WWSafe;
 use Net::SMTP;
 use PGcore;
@@ -308,6 +309,43 @@ sub _recursive_stash_keys {
     return $total;
 }
 
+sub _count_packages {
+    no strict 'refs';
+    my @stack = ('main::');
+    my %seen;
+    my $count = 0;
+    my $max = 200000;
+    while (@stack && $count < $max) {
+        my $pkg = pop @stack;
+        next if $seen{$pkg}++;
+        $count++;
+        my $stash_ref = eval { \%{$pkg} };
+        next unless ref $stash_ref;
+        for my $key (keys %$stash_ref) {
+            push @stack, "${pkg}${key}" if $key =~ /::$/;
+        }
+    }
+    return $count;
+}
+
+my @PARSER_LEGACY_SUBS = qw(
+    Parser::Legacy::FormulaWithUnits
+    Parser::Legacy::LimitedComplex
+    Parser::Legacy::LimitedNumeric
+    Parser::Legacy::NumberWithUnits
+    Parser::Legacy::Numeric
+    Parser::Legacy::ObjectWithUnits
+);
+
+sub _parser_legacy_isarev_total {
+    my $total = 0;
+    for my $sub (@PARSER_LEGACY_SUBS) {
+        my $isarev = eval { mro::get_isarev($sub) };
+        $total += scalar(@$isarev) if ref($isarev) eq 'ARRAY';
+    }
+    return $total;
+}
+
 sub initialize {
     my $self = shift;
     my $safe_cmpt = $self->{safe};
@@ -374,6 +412,8 @@ sub initialize {
 		}
 	}
 	$parser_legacy_recursive = _recursive_stash_keys("Parser::Legacy::");
+	my $total_packages = _count_packages();
+	my $parser_legacy_isarev = _parser_legacy_isarev_total();
 
 	if (!$parser_legacy_dumped) {
 		$parser_legacy_dumped = 1;
@@ -403,6 +443,8 @@ sub initialize {
 		parser_keys           => $parser_keys,
 		encode_encoding_keys  => $encode_encoding_keys,
 		parser_legacy_recursive => $parser_legacy_recursive,
+		total_packages           => $total_packages,
+		parser_legacy_isarev     => $parser_legacy_isarev,
 	};
 }
 
