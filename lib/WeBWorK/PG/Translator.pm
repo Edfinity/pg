@@ -309,11 +309,33 @@ sub initialize {
 		# the above line will get changed when we fix the PG modules thing. heh heh.
 	my $t4 = Time::HiRes::time();
 
+	my $rim = $self->{ra_included_modules};
+	my $rim_count = ref($rim) eq 'ARRAY' ? scalar(@$rim) : 0;
+	my $rim_total_keys = 0;
+	my $main_stash_keys = 0;
+	{
+		no strict 'refs';
+		$main_stash_keys = scalar(keys %{"main::"});
+		if (ref($rim) eq 'ARRAY') {
+			for my $name (@$rim) {
+				next unless defined $name && length $name;
+				(my $key = $name) =~ s/^\*//;
+				$key =~ s/^main:://;
+				$key = $key =~ /::$/ ? $key : "${key}::";
+				my $n = eval { scalar(keys %{$key}) };
+				$rim_total_keys += $n if $n;
+			}
+		}
+	}
+
 	$self->{_init_timings} = {
 		init_pg_translator_ms => ($t1 - $t0) * 1000,
 		init_pg_io_ms         => ($t2 - $t1) * 1000,
 		init_envir_share_ms   => ($t3 - $t2) * 1000,
 		init_main_ms          => ($t4 - $t3) * 1000,
+		init_main_count       => $rim_count,
+		init_main_keys        => $rim_total_keys,
+		main_stash_keys       => $main_stash_keys,
 	};
 }
 
