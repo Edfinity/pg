@@ -314,10 +314,14 @@ sub _count_packages {
     my @stack = ('main::');
     my %seen;
     my $count = 0;
-    my $max = 200000;
+    my $max = 50000;
     while (@stack && $count < $max) {
         my $pkg = pop @stack;
         next if $seen{$pkg}++;
+        # Skip Safe::Root\d+:: subtrees: those are stash aliases of main::
+        # entries, walking them just rediscovers the same physical stashes
+        # via different path strings and explodes %seen.
+        next if $pkg =~ /^Safe::Root\d/;
         $count++;
         my $stash_ref = eval { \%{$pkg} };
         next unless ref $stash_ref;
