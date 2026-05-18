@@ -160,41 +160,9 @@ sub load_extra_packages{
 =cut
 
 
-# --- Cached-Safe-compartment support ----------------------------------------
-# The default code path creates a new Safe compartment per Translator instance
-# (and therefore per render request). Under prefork mod_perl, the compartment
-# is not destroyed at request end — refs into it survive cleanup, accumulating
-# ~600K live SVs per request and tipping workers into SizeLimit-driven recycle.
-# See doc/memory-optimization/findings.md and Devel::Gladiator evidence in
-# 05-16.shared.28.parallel-2.1.txt.
-#
-# When XENOPHON_CACHE_SAFE=1 is set, the very first Translator instance creates
-# a single compartment cached in $CACHED_SAFE, populates it with the static
-# shares (Translator + IO subs + the 92-name `ra_included_modules` list), and
-# snapshots its stash keys into %CACHED_STATIC_KEYS. Subsequent Translator
-# instances reuse that compartment and only do per-request shares (`%envir`,
-# `$PREPROCESS_CODE`). At cleanup, per-request stash pollution is wiped
-# selectively (anything not in %CACHED_STATIC_KEYS) instead of the whole
-# compartment being erased.
-our $USE_SAFE_CACHE = (defined $ENV{XENOPHON_CACHE_SAFE} && $ENV{XENOPHON_CACHE_SAFE} eq '1') ? 1 : 0;
-our $CACHED_SAFE;             # the singleton compartment (built lazily on first use)
-our $CACHED_SAFE_READY;       # set once static shares have been done
-our %CACHED_STATIC_KEYS;      # stash keys that are part of the static cache
-# ----------------------------------------------------------------------------
-
 sub new {
 	my $class = shift;
-	my $safe_cmpt;
-	my $safe_is_cached = 0;
-	if ($USE_SAFE_CACHE) {
-		# Build the singleton once; reuse forever. The static share_from
-		# calls happen on first initialize().
-		$CACHED_SAFE //= new WWSafe;
-		$safe_cmpt = $CACHED_SAFE;
-		$safe_is_cached = 1;
-	} else {
-		$safe_cmpt = new WWSafe; #('PG_priv');
-	}
+	my $safe_cmpt = new WWSafe; #('PG_priv');
 	my $self = {
 	    preprocess_code           =>  \&default_preprocess_code,
 	    postprocess_code           => \&default_postprocess_code,
@@ -207,7 +175,6 @@ sub new {
 		PG_FLAGS_REF              => {},
 		rh_pgcore                 => undef,    # ref to PGcore object
 		safe                      => $safe_cmpt,
-		safe_is_cached            => $safe_is_cached,
 		safe_compartment_name     => $safe_cmpt->root,
 		errors                    => "",
 		source                    => "",
@@ -402,50 +369,27 @@ sub initialize {
     #print "initializing safeCompartment",$safe_cmpt -> root(), "\n";
 
     my $t0 = Time::HiRes::time();
-    my ($t1, $t2, $t3, $t4);
-    if ($self->{safe_is_cached} && $CACHED_SAFE_READY) {
-        # Cached path: static shares already done; only per-request work.
-        $t1 = $t2 = $t0;
-        no strict;
-        local(%envir) = %{ $self ->{envir} };
-        $safe_cmpt -> share('%envir');
-        local($PREPROCESS_CODE) = sub {&{$self->{preprocess_code}} ( @_ ) };
-        $safe_cmpt -> share ('$PREPROCESS_CODE');
-        use strict;
-        $t3 = Time::HiRes::time();
-        $t4 = $t3;  # no per-request share_from('main') in cached mode
-    } else {
-        # First-time path (or non-cached): do the static shares.
-        $safe_cmpt -> share_from('WeBWorK::PG::Translator',
-                     [keys %Translator_shared_subroutine_hash]);
-        $t1 = Time::HiRes::time();
-        $safe_cmpt -> share_from('WeBWorK::PG::IO',
-                     [keys %IO_shared_subroutine_hash]);
-        $t2 = Time::HiRes::time();
-        no strict;
-        local(%envir) = %{ $self ->{envir} };
-        $safe_cmpt -> share('%envir');
-        #local($rf_answer_eval) = sub { $self->PG_answer_eval(@_); };
-        #local($rf_restricted_eval) = sub { $self->PG_restricted_eval(@_); };
-        local($PREPROCESS_CODE) = sub {&{$self->{preprocess_code}} ( @_ ) };
-        $safe_cmpt -> share ('$PREPROCESS_CODE'); # for the benefit of IO::includePGtext()
-        #$safe_cmpt -> share('$rf_answer_eval');
-        #$safe_cmpt -> share('$rf_restricted_eval');
-        use strict;
-        $t3 = Time::HiRes::time();
+    $safe_cmpt -> share_from('WeBWorK::PG::Translator',
+			     [keys %Translator_shared_subroutine_hash]);
+    my $t1 = Time::HiRes::time();
+    $safe_cmpt -> share_from('WeBWorK::PG::IO',
+			     [keys %IO_shared_subroutine_hash]);
+    my $t2 = Time::HiRes::time();
+    no strict;
+    local(%envir) = %{ $self ->{envir} };
+	$safe_cmpt -> share('%envir');
+	#local($rf_answer_eval) = sub { $self->PG_answer_eval(@_); };
+	#local($rf_restricted_eval) = sub { $self->PG_restricted_eval(@_); };
+	local($PREPROCESS_CODE) = sub {&{$self->{preprocess_code}} ( @_ ) };
+	$safe_cmpt -> share ('$PREPROCESS_CODE'); # for the benefit of IO::includePGtext()
+	#$safe_cmpt -> share('$rf_answer_eval');
+	#$safe_cmpt -> share('$rf_restricted_eval');
+	use strict;
+	my $t3 = Time::HiRes::time();
 
-        $safe_cmpt -> share_from('main', $self->{ra_included_modules} );
-            # the above line will get changed when we fix the PG modules thing. heh heh.
-        $t4 = Time::HiRes::time();
-
-        if ($self->{safe_is_cached}) {
-            # Snapshot the stash so cleanup knows what's static vs per-request.
-            no strict 'refs';
-            my $root = $safe_cmpt->root();
-            %CACHED_STATIC_KEYS = map { $_ => 1 } keys %{"${root}::"};
-            $CACHED_SAFE_READY = 1;
-        }
-    }
+	$safe_cmpt -> share_from('main', $self->{ra_included_modules} );
+		# the above line will get changed when we fix the PG modules thing. heh heh.
+	my $t4 = Time::HiRes::time();
 
 	my $rim = $self->{ra_included_modules};
 	my $rim_count = ref($rim) eq 'ARRAY' ? scalar(@$rim) : 0;

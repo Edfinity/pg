@@ -31,10 +31,7 @@ sub cleanup {
     # PGcore fields on the translator itself (Translator inherits from PGcore)
     $self->PGcore::cleanup();
 
-    # Safe compartment cleanup. Two paths:
-    #   - cached (XENOPHON_CACHE_SAFE=1): wipe per-request stash pollution but
-    #     keep the static shares intact, so the next request reuses them.
-    #   - non-cached (legacy default): erase the whole compartment as before.
+    # Contexts inside Safe compartment
     if ($self->{safe}) {
         no strict 'refs';
         my $root = $self->{safe}->root();
@@ -49,34 +46,13 @@ sub cleanup {
             }
         }
 
-        if ($self->{safe_is_cached}
-            && $WeBWorK::PG::Translator::CACHED_SAFE_READY) {
-            # Selective wipe: clear any stash entry that wasn't part of the
-            # static cache snapshot. Skip sub-package buckets ('Foo::') —
-            # those are the shared module namespaces and stay.
-            my $stash = \%{"${root}::"};
-            for my $key (keys %$stash) {
-                next if $WeBWorK::PG::Translator::CACHED_STATIC_KEYS{$key};
-                next if $key =~ /::$/;
-                # Undef each slot of the typeglob, then drop the stash entry.
-                undef ${"${root}::${key}"};
-                undef @{"${root}::${key}"};
-                undef %{"${root}::${key}"};
-                undef &{"${root}::${key}"};
-                delete $stash->{$key};
-            }
-        } else {
-            $self->{safe}->erase();
-        }
+        $self->{safe}->erase();
     }
 
     # Translator's own fields
     $self->{envir} = undef;
     $self->{rh_pgcore} = undef;
     $self->{ra_included_modules} = [];
-    # In cached mode, dropping $self->{safe} only releases this Translator's
-    # reference; the singleton in $WeBWorK::PG::Translator::CACHED_SAFE keeps
-    # the compartment alive for the next request.
     $self->{safe} = undef;
 }
 
